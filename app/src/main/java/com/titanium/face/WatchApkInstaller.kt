@@ -64,6 +64,7 @@ object WatchApkInstaller {
         } finally {
             stream.close()
         }
+        progress(101)
         val installOutput = shell(manager, "pm install -r $remote")
         try { shell(manager, "rm -f $remote") } catch (_: Exception) { }
         return installOutput
