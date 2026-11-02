@@ -91,7 +91,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.7 • подготовка сопряжения", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.8 • ADB pairing (тест)", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -152,6 +152,38 @@ class MainActivity : Activity() {
             }
         }
         content.addView(button)
+        content.addView(gap(10))
+        val pairingStatus = label("Сопряжение ещё не выполнялось", 14f, color = accent)
+        val pairButton = Button(this).apply {
+            text = "Сопрячь часы по коду (тест)"; isAllCaps = false
+            setOnClickListener {
+                val host = ip.text.toString().trim()
+                val p = port.text.toString().toIntOrNull()
+                val pin = code.text.toString()
+                val octets = host.split(".")
+                if (octets.size != 4 || !octets.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
+                    || p == null || p !in 1..65535 || !pin.matches(Regex("[0-9]{6}"))) {
+                    pairingStatus.text = "Проверь IP, порт сопряжения и шестизначный код"
+                } else {
+                    pairingStatus.text = "Выполняется защищённое ADB-сопряжение…"
+                    code.text.clear()
+                    thread {
+                        val message = try {
+                            val manager = WatchAdbManager()
+                            val paired = manager.pair(host, p, pin)
+                            if (paired) "ADB-сопряжение выполнено. Следующий шаг — TLS-подключение."
+                            else "Часы отклонили сопряжение. Проверь код и временный порт."
+                        } catch (e: Exception) {
+                            "Ошибка ADB-сопряжения: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                        }
+                        runOnUiThread { pairingStatus.text = message }
+                    }
+                }
+            }
+        }
+        content.addView(pairButton)
+        content.addView(gap(8))
+        content.addView(pairingStatus)
         content.addView(gap(12))
         val result = label("Сеть ещё не проверялась", 14f, color = accent)
         val probe = Button(this).apply {
