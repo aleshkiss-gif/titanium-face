@@ -195,33 +195,41 @@ class MainActivity : Activity() {
         show(1)
     }
     private fun ensureWatchConnected(): WatchAdbManager {
-        val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
-        if (manager.isConnected) return manager
         val host = prefs.getString("watch_ip", watchAddress)?.trim().orEmpty()
         val port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
         require(host.isNotEmpty() && port != null && port in 1..65535) {
-            "Сначала укажи IP и порт подключения на вкладке «Часы»"
+            "Укажи IP и порт ADB на вкладке «Часы»"
         }
+        val existing = adbManager
+        if (existing?.isConnected == true) return existing
         try {
             Socket().use { socket -> socket.connect(InetSocketAddress(host, port), 2500) }
         } catch (e: Exception) {
             adbManager = null
-            throw IllegalStateException("Порт ADB $port недоступен на $host. После перезагрузки часов проверь новый порт в беспроводной отладке.", e)
+            throw IllegalStateException("Порт $port недоступен на $host. Проверь текущий порт беспроводной отладки.", e)
         }
-        var connected = false
-        repeat(2) { attempt ->
-            if (!connected) {
-                connected = try { manager.connect(host, port) } catch (_: Exception) { false }
-                if (!connected && attempt < 1) Thread.sleep(500L)
-            }
+        var lastError: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                // A failed TLS handshake can leave the previous manager unusable.
+                // Always create a fresh connection object, preserving the stored identity.
+                val candidate = WatchAdbManager(applicationContext)
+                if (candidate.connect(host, port) && candidate.isConnected) {
+                    adbManager = candidate
+                    adbConnected = true
+                    runOnUiThread { updateConnectionStatus() }
+                    return candidate
+                }
+            } catch (e: Exception) { lastError = e }
+            if (attempt < 2) Thread.sleep(600L * (attempt + 1))
         }
-        if (!connected) {
-            adbManager = null
-            throw IllegalStateException("ADB TLS не подключилось. Проверь актуальный порт часов; если порт верен, повтори сопряжение.")
-        }
-        adbConnected = true
+        adbManager = null
+        adbConnected = false
         runOnUiThread { updateConnectionStatus() }
-        return manager
+        throw IllegalStateException(
+            "Не удалось восстановить ADB TLS. Если сопряжение уже выполнено, проверь порт ADB и попробуй подключиться снова без кода.",
+            lastError
+        )
     }
 
     private fun updateConnectionStatus() {
