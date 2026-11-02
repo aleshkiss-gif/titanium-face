@@ -117,41 +117,79 @@ class MainActivity : Activity() {
             false
         }
     }
+    private var backdropAnimator: android.animation.ValueAnimator? = null
     private fun dialBackdrop(): android.graphics.drawable.Drawable =
         object : android.graphics.drawable.Drawable() {
-            private val paint = android.graphics.Paint(3)
+            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            
             override fun draw(canvas: android.graphics.Canvas) {
                 val w = bounds.width().toFloat()
                 val h = bounds.height().toFloat()
-                canvas.drawColor(0xff030706.toInt())
-                val cx = w * 0.52f
-                val cy = h * 0.39f
-                val radius = w * 0.61f
+                if (w <= 0f || h <= 0f) return
+                canvas.drawColor(0xff050A13.toInt())
                 paint.style = android.graphics.Paint.Style.FILL
-                paint.shader = android.graphics.RadialGradient(cx, cy, radius * 1.55f,
-                    intArrayOf(0x142C8A50, 0x091D5636, 0x040C2C21, 0x00030706),
-                    floatArrayOf(0f, 0.37f, 0.70f, 1f), android.graphics.Shader.TileMode.CLAMP)
+                paint.shader = android.graphics.RadialGradient(
+                    w * 0.5f, h * 0.38f, w * 0.95f,
+                    intArrayOf(0xff102947.toInt(), 0xff091727.toInt(), 0xff050A13.toInt()),
+                    floatArrayOf(0f, 0.55f, 1f), android.graphics.Shader.TileMode.CLAMP
+                )
                 canvas.drawRect(0f, 0f, w, h, paint)
                 paint.shader = null
-                paint.typeface = Typeface.create("sans-serif-light", Typeface.BOLD)
+
+                // Deep blue dotted field: gently drifting waves of light.
+                val spacing = dp(23).toFloat()
+                val columns = (w / spacing).toInt() + 2
+                val rows = (h / spacing).toInt() + 2
+                for (iy in 0..rows) {
+                    for (ix in 0..columns) {
+                        val x = ix * spacing + (iy % 2) * spacing * 0.5f
+                        val y = iy * spacing
+                        val wave = kotlin.math.sin(ix * 0.43f + iy * 0.29f - backdropPhase).toFloat()
+                        val drift = kotlin.math.sin(iy * 0.32f + backdropPhase * 0.7f).toFloat() * dp(2)
+                        val glow = ((wave + 1f) * 0.5f)
+                        val alpha = (18 + glow * 68).toInt().coerceIn(0, 255)
+                        paint.color = Color.argb(alpha, 70, 162, 255)
+                        canvas.drawCircle(x + drift, y, dp(0.9f) + glow * dp(0.7f), paint)
+                    }
+                }
+
+                // Large translucent WFM lettering behind the controls.
+                paint.typeface = Typeface.create("sans-serif-black", Typeface.BOLD)
                 paint.textAlign = android.graphics.Paint.Align.CENTER
-                paint.textSize = w * 0.27f
+                paint.textSize = w * 0.29f
+                val cx = w * 0.5f
+                val cy = h * 0.41f
                 val baseline = cy - (paint.ascent() + paint.descent()) / 2f
-                for (layer in 12 downTo 1) {
+                for (layer in 9 downTo 1) {
                     paint.style = android.graphics.Paint.Style.STROKE
                     paint.strokeWidth = dp(layer * 2).toFloat()
-                    paint.color = Color.argb(2, 85, 178, 122)
+                    paint.color = Color.argb((2 + layer / 3), 40, 130, 245)
                     canvas.drawText("WFM", cx, baseline, paint)
                 }
                 paint.style = android.graphics.Paint.Style.FILL
-                paint.color = Color.argb(20, 96, 190, 130)
+                paint.color = Color.argb(17, 86, 168, 255)
                 canvas.drawText("WFM", cx, baseline, paint)
-                paint.shader = null
             }
             override fun setAlpha(alpha: Int) {}
             override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
             override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
         }
+    private fun startBackdropAnimation(drawable: android.graphics.drawable.Drawable) {
+        backdropAnimator?.cancel()
+        val animated = drawable
+        backdropAnimator = android.animation.ValueAnimator.ofFloat(0f, (Math.PI * 2).toFloat()).apply {
+            duration = 11000L
+            repeatCount = android.animation.ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener {
+                // The drawable owns the animation phase and invalidates the background.
+                backdropPhase = it.animatedValue as Float
+                animated.invalidateSelf()
+            }
+            start()
+        }
+    }
+    private var backdropPhase = 0f
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
         text = s; textSize = size; setTextColor(color); if (bold) setTypeface(null, Typeface.BOLD)
     }
@@ -219,6 +257,8 @@ class MainActivity : Activity() {
             }
         }
     }
+
+    override fun onDestroy() { backdropAnimator?.cancel(); super.onDestroy() }
 
     override fun onResume() {
         super.onResume()
@@ -312,6 +352,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             background = dialBackdrop()
         }
+        startBackdropAnimation(frame.background)
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
