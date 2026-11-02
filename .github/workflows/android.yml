@@ -2,6 +2,8 @@ name: Android APK
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,8 +19,30 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Restore persistent debug signing key
+        id: signing-key
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: titanium-face-debug-signing-v1
+      - name: Create signing key only on first run
+        if: steps.signing-key.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" \
+            -storepass android -alias androiddebugkey -keypass android \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Titanium Face Debug,OU=Development,O=Titanium Face,C=US"
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon
+      - name: Save signing key for future builds
+        if: steps.signing-key.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: titanium-face-debug-signing-v1
+      - name: Show signing certificate fingerprint
+        run: keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E 'SHA256:|SHA1:'
       - uses: actions/upload-artifact@v4
         with:
           name: titanium-face-debug
