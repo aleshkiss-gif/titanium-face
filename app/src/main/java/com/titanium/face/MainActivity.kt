@@ -205,7 +205,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.22 • Удобное подключение", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.23 • Профиль и сопряжение", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -251,31 +251,34 @@ class MainActivity : Activity() {
         track(port) { pairingPort = it }
         track(code) { pairingCodeDraft = it }
         code.setText(pairingCodeDraft)
-        content.addView(label("КОД СОПРЯЖЕНИЯ", 18f, true, accent))
-        content.addView(label("6 цифр · только для первого сопряжения", 12f, color = 0xffB8C0D0.toInt()))
-        content.addView(code)
-        content.addView(gap(18))
-        content.addView(label("IP-АДРЕС ЧАСОВ", 15f, true, accent))
-        content.addView(ip)
-        content.addView(gap(12))
         val adbPort = EditText(this).apply {
             hint = "Порт подключения ADB"; setText(connectionPort)
             setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         track(adbPort) { connectionPort = it }
-        val portsRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val pairCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        pairCol.addView(label("ПОРТ СОПРЯЖЕНИЯ", 13f, true, accent))
-        pairCol.addView(port)
-        val adbCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        adbCol.addView(label("ПОРТ ADB", 13f, true, accent))
-        adbCol.addView(adbPort)
-        portsRow.addView(pairCol, LinearLayout.LayoutParams(0, -2, 1f))
-        portsRow.addView(gap(12))
-        portsRow.addView(adbCol, LinearLayout.LayoutParams(0, -2, 1f))
-        content.addView(portsRow)
-        content.addView(gap(12))
+        content.addView(label("ПРОФИЛЬ ЧАСОВ · ПОРТ ADB", 16f, true, accent))
+        content.addView(label("Сохранённый порт подключения. Может измениться после перезапуска беспроводной отладки.", 12f, color = 0xffB8C0D0.toInt()))
+        content.addView(adbPort)
+        content.addView(gap(20))
+        content.addView(label("ДАННЫЕ С ЭКРАНА СОПРЯЖЕНИЯ", 16f, true, accent))
+        content.addView(label("IP и временный порт рядом с кодом на часах", 12f, color = 0xffB8C0D0.toInt()))
+        val pairingRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val ipColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        ipColumn.addView(label("IP ЧАСОВ", 13f, true, accent))
+        ipColumn.addView(ip)
+        val pairingPortColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        pairingPortColumn.addView(label("ПОРТ СОПРЯЖЕНИЯ", 13f, true, accent))
+        pairingPortColumn.addView(port)
+        pairingRow.addView(ipColumn, LinearLayout.LayoutParams(0, -2, 3f))
+        pairingRow.addView(Space(this), LinearLayout.LayoutParams(dp(12), 1))
+        pairingRow.addView(pairingPortColumn, LinearLayout.LayoutParams(0, -2, 2f))
+        content.addView(pairingRow)
+        content.addView(gap(20))
+        content.addView(label("КОД СОПРЯЖЕНИЯ", 18f, true, accent))
+        content.addView(label("6 цифр · вводится только при новом сопряжении", 12f, color = 0xffB8C0D0.toInt()))
+        content.addView(code)
+        content.addView(gap(14))
         content.addView(label("IP и оба порта сохраняются в профиле. Код не сохраняется. Порт подключения может меняться после перезапуска отладки.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(gap(12))
         val button = Button(this).apply {
