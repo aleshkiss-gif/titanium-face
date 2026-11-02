@@ -42,7 +42,7 @@ jobs:
           keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
       - name: Verify APK signing identity
         env:
-          EXPECTED_SHA256: "C3C25AA9D6C5E327E6B142D82F0C74D53CBDECF5306F801223B0ADCDC9382365"
+          EXPECTED_SHA256: "A1A305A50769DDF01AF3F16483F3B74DDF0AB82966CB2BDD8A434B5DD676396A"
         run: |
           ACTUAL_SHA256="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
           if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
