@@ -16,6 +16,10 @@ import java.net.Socket
 import java.net.InetSocketAddress
 import kotlin.concurrent.thread
 import java.io.File
+import java.security.KeyStore
+import java.security.KeyPairGenerator
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 
 class MainActivity : Activity() {
     private val backgroundColor = Color.rgb(11, 13, 19)
@@ -81,7 +85,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.5 • анализ APK", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.6 • ключи ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -171,7 +175,40 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(result)
         content.addView(gap(14))
-        card("Статус: не подключено", "Проверка TCP-порта не означает ADB-сопряжение. Защищённый ADB-клиент ещё не реализован. Код не сохраняется.")
+        card("Статус: не подключено", "Ключ устройства готовится локально. Протокол ADB pairing и TLS пока не реализован. Код сопряжения не сохраняется.")
+        val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
+        val keyButton = Button(this).apply {
+            text = "Создать защищённый ключ устройства"; isAllCaps = false
+            setOnClickListener {
+                isEnabled = false
+                identityStatus.text = "Подготавливаем ключ в Android Keystore…"
+                thread {
+                    val message = try {
+                        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                        if (!store.containsAlias("titanium_adb_identity_v1")) {
+                            val spec = KeyGenParameterSpec.Builder(
+                                "titanium_adb_identity_v1",
+                                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
+                            ).setAlgorithmParameterSpec(java.security.spec.RSAKeyGenParameterSpec(2048, java.security.spec.RSAKeyGenParameterSpec.F4))
+                                .setDigests(KeyProperties.DIGEST_SHA256)
+                                .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
+                                .build()
+                            KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore").apply {
+                                initialize(spec)
+                                generateKeyPair()
+                            }
+                        }
+                        "Ключ создан или уже существует в Android Keystore. Сопряжение ещё не выполнено."
+                    } catch (e: Exception) {
+                        "Не удалось создать ключ: " + (e.localizedMessage ?: "ошибка")
+                    }
+                    runOnUiThread { identityStatus.text = message; keyButton.isEnabled = true }
+                }
+            }
+        }
+        content.addView(keyButton)
+        content.addView(gap(8))
+        content.addView(identityStatus)
     }
     private fun pickApk() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
