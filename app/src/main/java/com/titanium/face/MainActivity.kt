@@ -134,13 +134,43 @@ class MainActivity : Activity() {
                 card("♡  Избранное", "В будущей версии здесь будут сохранённые циферблаты.")
             }
             1 -> {
-                card("＋  Выбрать APK или ZIP", "Выбрать APK или ZIP-архив с одним APK.") { pickApk() }
                 if (selectedUri != null) {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
-                    card("✓  Файл выбран", (selectedName ?: "APK / ZIP") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
-                } else card("Нет выбранного файла", "Выбери APK или ZIP для просмотра информации.")
-                card("Установка на часы", "Выбери APK или ZIP с одним APK и подключись к часам по ADB TLS. Архив распакуется автоматически.")
+                    card("✓  Файл выбран · Изменить", (selectedName ?: "APK / ZIP") + "\n" + mb + "\n" + apkInfo + "\nНажми для выбора другого файла.") { pickApk() }
+                } else {
+                    card("＋  Выбрать APK или ZIP", "Нажми, чтобы выбрать файл циферблата.") { pickApk() }
+                }
                 val installStatus = label("Установка ещё не запускалась", 14f, color = accent)
+                val progressFrame = FrameLayout(this).apply {
+                    background = rounded(surface)
+                    clipToOutline = true
+                }
+                val progressFill = View(this).apply { setBackgroundColor(0x665BFF9B) }
+                progressFrame.addView(progressFill, FrameLayout.LayoutParams(0, -1, Gravity.START))
+                val progressLabel = label("↓  Установить циферблат", 19f, true).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(20), dp(20), dp(20), dp(20))
+                }
+                progressFrame.addView(progressLabel, FrameLayout.LayoutParams(-1, -1))
+                var progressAnimation: android.animation.ValueAnimator? = null
+                fun setProgress(percent: Int, title: String) {
+                    progressLabel.text = title
+                    progressFrame.post {
+                        progressFill.layoutParams = (progressFill.layoutParams as FrameLayout.LayoutParams).apply {
+                            width = (progressFrame.width * percent.coerceIn(0, 100) / 100f).toInt()
+                        }
+                    }
+                }
+                fun startLoading() {
+                    progressAnimation?.cancel()
+                    progressAnimation = android.animation.ValueAnimator.ofInt(8, 92).apply {
+                        duration = 1700L
+                        repeatCount = android.animation.ValueAnimator.INFINITE
+                        repeatMode = android.animation.ValueAnimator.REVERSE
+                        addUpdateListener { setProgress(it.animatedValue as Int, "Подключение к часам…") }
+                        start()
+                    }
+                }
                 val installButton = Button(this).apply {
                     text = "Установить выбранный APK на часы"; isAllCaps = false
                     setOnClickListener {
@@ -149,6 +179,8 @@ class MainActivity : Activity() {
                             installStatus.text = "Сначала выбери APK циферблата"
                         } else {
                             isEnabled = false
+                            progressFrame.isEnabled = false
+                            startLoading()
                             installStatus.text = "Подготовка APK…"
                             thread {
                                 val message = try {
@@ -159,7 +191,7 @@ class MainActivity : Activity() {
                                         try {
                                             runOnUiThread { installStatus.text = if (attempt == 1) "Устанавливаем…" else "Восстанавливаем ADB: попытка $attempt из 3…" }
                                             response = WatchApkInstaller.install(ensureWatchConnected(), apk) { percent ->
-                                                runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
+                                                runOnUiThread { progressAnimation?.cancel(); setProgress(percent, "↓  Установка · $percent%"); installStatus.text = "Передача на часы: $percent%" }
                                             }
                                             break
                                         } catch (e: Exception) {
@@ -181,12 +213,13 @@ class MainActivity : Activity() {
                                     android.util.Log.e("TitaniumApkInstall", "Install failed", e)
                                     "Ошибка установки: " + (e.localizedMessage ?: e.javaClass.simpleName)
                                 }
-                                runOnUiThread { installStatus.text = message; isEnabled = true }
+                                runOnUiThread { progressAnimation?.cancel(); setProgress(if (message.startsWith("Установка завершена")) 100 else 0, if (message.startsWith("Установка завершена")) "✓  Циферблат установлен" else "↓  Установить циферблат"); installStatus.text = message; isEnabled = true; progressFrame.isEnabled = true }
                             }
                         }
                     }
                 }
-                actionCard("↓  Установить APK на часы", "Передать выбранный APK или ZIP на Galaxy Watch", { installButton.performClick() })
+                progressFrame.setOnClickListener { if (progressFrame.isEnabled) installButton.performClick() }
+                content.addView(progressFrame, LinearLayout.LayoutParams(-1, dp(88)))
                 content.addView(gap(8))
                 content.addView(installStatus)
                 content.addView(gap(24))
@@ -255,7 +288,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.25 • Мои установки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.26 • Прогресс установки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
