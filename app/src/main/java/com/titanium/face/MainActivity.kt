@@ -177,7 +177,7 @@ class MainActivity : Activity() {
                     code.text.clear()
                     thread {
                         val message = try {
-                            val manager = WatchAdbManager()
+                            val manager = WatchAdbManager(applicationContext)
                             val paired = manager.pair(host, p, pin)
                             if (paired) "ADB-сопряжение выполнено. Следующий шаг — TLS-подключение."
                             else "Часы отклонили сопряжение. Проверь код и временный порт."
@@ -229,7 +229,7 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(result)
         content.addView(gap(14))
-        card("Статус: не подключено", "Ключ устройства готовится локально. Протокол ADB pairing и TLS пока не реализован. Код сопряжения не сохраняется.")
+        card("Статус: не подключено", "ADB-сопряжение тестируется. Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
         val keyButton = Button(this).apply {
             text = "Создать защищённый ключ устройства"; isAllCaps = false
