@@ -37,6 +37,7 @@ class MainActivity : Activity() {
     private var adbManager: WatchAdbManager? = null
     private var adbConnected = false
     private var connectionStatusView: TextView? = null
+    private var connectionStatusNote: TextView? = null
     private var pairingCodeDraft = ""
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
@@ -82,11 +83,20 @@ class MainActivity : Activity() {
             "Не удалось восстановить ADB. Проверь беспроводную отладку и текущий порт часов"
         }
         adbConnected = true
+        runOnUiThread { updateConnectionStatus() }
         return manager
+    }
+
+    private fun updateConnectionStatus() {
+        val connected = adbManager?.isConnected == true
+        connectionStatusView?.text = if (connected) "● ADB подключено" else "○ ADB не подключено"
+        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение активно" else "Galaxy Watch Ultra · нажми «Проверить подключение»"
     }
 
     private fun show(tab: Int) {
         currentTab = tab
+        connectionStatusView = null
+        connectionStatusNote = null
         val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
@@ -197,7 +207,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.20 • Повтор ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.21 • Статус ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -375,7 +385,7 @@ class MainActivity : Activity() {
                             android.util.Log.e("TitaniumAdbTls", "Connect failed", e)
                             "Ошибка TLS: " + (e.javaClass.simpleName + ": " + (e.localizedMessage ?: "нет описания")).take(550)
                         }
-                        runOnUiThread { tlsStatus.text = message; connectionStatusView?.text = if (adbManager?.isConnected == true) "● ADB подключено" else "○ ADB не подключено" }
+                        runOnUiThread { tlsStatus.text = message; updateConnectionStatus() }
                     }
                 }
             }
@@ -387,7 +397,27 @@ class MainActivity : Activity() {
         val liveStatus = label(if (adbManager?.isConnected == true) "● ADB подключено" else "○ ADB не подключено", 20f, true, accent)
         connectionStatusView = liveStatus
         content.addView(liveStatus)
-        content.addView(label("Профиль: Galaxy Watch Ultra · ключ хранится в зашифрованном виде", 13f, color = 0xffB8C0D0.toInt()))
+        val statusNote = label("Профиль: Galaxy Watch Ultra · ключ хранится в зашифрованном виде", 13f, color = 0xffB8C0D0.toInt())
+        connectionStatusNote = statusNote
+        content.addView(statusNote)
+        val refreshButton = Button(this).apply {
+            text = "Проверить / восстановить подключение"; isAllCaps = false
+            setOnClickListener {
+                isEnabled = false
+                statusNote.text = "Проверяем подключение…"
+                thread {
+                    val result = try { ensureWatchConnected(); "Соединение подтверждено" }
+                        catch (e: Exception) { e.localizedMessage ?: "Подключение не удалось" }
+                    runOnUiThread {
+                        updateConnectionStatus()
+                        statusNote.text = result
+                        isEnabled = true
+                    }
+                }
+            }
+        }
+        content.addView(gap(10))
+        content.addView(refreshButton)
         content.addView(gap(16))
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
         val keyButton = Button(this).apply {
