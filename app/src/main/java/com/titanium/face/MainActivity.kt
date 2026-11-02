@@ -122,14 +122,22 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
         }
-        content.addView(ip); content.addView(gap(8))
-        content.addView(port); content.addView(gap(8))
+        content.addView(label("1. IP-АДРЕС ЧАСОВ", 17f, color = accent))
+        content.addView(label("Основной экран «Беспроводная отладка». Пример: 192.168.1.75", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(ip); content.addView(gap(18))
+        content.addView(label("2. ПОРТ СОПРЯЖЕНИЯ", 17f, color = accent))
+        content.addView(label("Экран «Сопрячь устройство с помощью кода». Временный порт рядом с шестизначным кодом.", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(port); content.addView(gap(18))
         val adbPort = EditText(this).apply {
             hint = "Порт подключения ADB (отдельный)"; setText(connectionPort)
             setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER
         }
-        content.addView(adbPort); content.addView(gap(8))
+        content.addView(label("3. ПОРТ ПОДКЛЮЧЕНИЯ ADB", 17f, color = accent))
+        content.addView(label("Основной экран «Беспроводная отладка»: число ПОСЛЕ двоеточия в IP:порт. Не путай с портом сопряжения.", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(adbPort); content.addView(gap(18))
+        content.addView(label("4. ШЕСТИЗНАЧНЫЙ КОД СОПРЯЖЕНИЯ", 17f, color = accent))
+        content.addView(label("С экрана сопряжения на часах. Код не сохраняется.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(code); content.addView(gap(12))
         content.addView(label("Код и порт сопряжения после перезапуска вводятся заново. IP и порт подключения ADB сохраняются.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(gap(12))
@@ -145,7 +153,7 @@ class MainActivity : Activity() {
                 val validPort = pairingPort.toIntOrNull()?.let { it in 1..65535 } == true
                 val validCode = code.text.toString().matches(Regex("[0-9]{6}"))
                 val message = if (validIp && validPort && validCode)
-                    "Формат данных верный. Сопряжение ещё не выполняется: ADB-клиент будет добавлен отдельно."
+                    "Формат данных верный. Теперь нажми «Сопрячь часы по коду (тест)» и введи свежий код."
                 else "Проверь IP, порт и шестизначный код."
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
                 code.text.clear()
