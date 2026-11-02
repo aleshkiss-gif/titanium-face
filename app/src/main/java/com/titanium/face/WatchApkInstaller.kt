@@ -70,6 +70,10 @@ object WatchApkInstaller {
         return installOutput
     }
 
+    /** A TLS socket can report connected after the ADB service has stopped responding. */
+    fun probe(manager: WatchAdbManager): Boolean =
+        manager.isConnected && shellRaw(manager, "echo WFM_READY").contains("WFM_READY")
+
     fun installedPackages(manager: WatchAdbManager): Set<String> {
         require(manager.isConnected) { "Нет подключения к часам" }
         return shellRaw(manager, "pm list packages -3").lineSequence()
