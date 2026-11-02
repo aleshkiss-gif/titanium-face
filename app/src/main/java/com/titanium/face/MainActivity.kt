@@ -15,6 +15,7 @@ import android.text.InputType
 import java.net.Socket
 import java.net.InetSocketAddress
 import kotlin.concurrent.thread
+import java.io.File
 
 class MainActivity : Activity() {
     private val backgroundColor = Color.rgb(11, 13, 19)
@@ -23,6 +24,7 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private var selectedName: String? = null
     private var selectedSize: Long = -1
+    private var apkInfo = "Не проверено"
     private var selectedUri: Uri? = null
     private var currentTab = 0
     private var watchAddress = ""
@@ -67,7 +69,7 @@ class MainActivity : Activity() {
                 card("＋  Выбрать APK", "Выбрать файл из памяти смартфона.") { pickApk() }
                 if (selectedUri != null) {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
-                    card("✓  Файл выбран", (selectedName ?: "APK") + "\n" + mb + "\n\nСовместимость с Wear OS пока не проверена.")
+                    card("✓  Файл выбран", (selectedName ?: "APK") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
                 } else card("Нет выбранного файла", "Выбери APK для просмотра информации.")
                 card("Установка на часы", "Пока недоступна. Для установки потребуется безопасное ADB-сопряжение с часами.")
             }
@@ -79,7 +81,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.4 • диагностика сети", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.5 • анализ APK", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -184,6 +186,7 @@ class MainActivity : Activity() {
         selectedUri = uri
         selectedName = null
         selectedSize = -1
+        apkInfo = "Чтение APK…"
         contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -194,5 +197,30 @@ class MainActivity : Activity() {
         }
         if (selectedName == null) selectedName = uri.lastPathSegment ?: "APK"
         show(1)
+        thread {
+            val description = try {
+                val tmp = File(cacheDir, "selected-watchface.apk")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    tmp.outputStream().use { output ->
+                        val buffer = ByteArray(65536)
+                        var total = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > 100L * 1024 * 1024) throw IllegalArgumentException("APK больше 100 МБ")
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                } ?: throw IllegalArgumentException("Не удалось открыть файл")
+                @Suppress("DEPRECATION")
+                val info = packageManager.getPackageArchiveInfo(tmp.absolutePath, 0)
+                    ?: throw IllegalArgumentException("Файл не распознан как APK")
+                "Пакет: " + info.packageName + "\\nВерсия: " + (info.versionName ?: "не указана")
+            } catch (e: Exception) {
+                "Ошибка чтения APK: " + (e.localizedMessage ?: "неизвестная ошибка")
+            }
+            runOnUiThread { apkInfo = description; if (currentTab == 1) show(1) }
+        }
     }
 }
