@@ -18,7 +18,7 @@ class WatchStatusButton(context: Context) : View(context) {
     private var pressTime = -10000L
     private var pressedDepth = 0f
     private val animator = android.animation.ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 12000L
+        duration = 8500L
         repeatCount = android.animation.ValueAnimator.INFINITE
         interpolator = android.view.animation.LinearInterpolator()
         addUpdateListener { phase = (it.animatedValue as Float) * 6.283185f; invalidate() }
@@ -40,7 +40,7 @@ class WatchStatusButton(context: Context) : View(context) {
         paint.style = Paint.Style.FILL
         val strap = RectF(cx-radius*.54f, cy-radius*1.30f, cx+radius*.54f, cy+radius*1.30f)
         paint.shader = LinearGradient(strap.left, 0f, strap.right, 0f,
-            intArrayOf(0xff713000.toInt(),0xffff8d20.toInt(),0xff713000.toInt()),null,Shader.TileMode.CLAMP)
+            intArrayOf(0xff020d24.toInt(),0xff0b3774.toInt(),0xff04142e.toInt()),null,Shader.TileMode.CLAMP)
         canvas.drawRoundRect(strap, radius*.12f,radius*.12f,paint)
         paint.shader = null
         // Side buttons and the orange crown.
