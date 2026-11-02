@@ -100,19 +100,60 @@ class MainActivity : Activity() {
         setStroke(dp(1), 0x44A4C7CA)
     }
     private fun jelly(view: View) {
+        view.isClickable = true
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
-                    v.animate().scaleX(0.965f).scaleY(0.965f).setDuration(110).start()
+                    v.animate().cancel()
+                    v.animate().scaleX(0.965f).scaleY(0.965f).setDuration(95).start()
                 }
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(420)
-                        .setInterpolator(android.view.animation.OvershootInterpolator(2.1f)).start()
+                    v.animate().cancel()
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(370)
+                        .setInterpolator(android.view.animation.OvershootInterpolator(1.8f)).start()
                 }
             }
             false
         }
     }
+    private fun dialBackdrop(): android.graphics.drawable.Drawable =
+        object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint(3)
+            override fun draw(canvas: android.graphics.Canvas) {
+                val w = bounds.width().toFloat()
+                val h = bounds.height().toFloat()
+                canvas.drawColor(0xff030706.toInt())
+                val cx = w * 0.52f
+                val cy = h * 0.39f
+                val radius = w * 0.61f
+                paint.style = android.graphics.Paint.Style.FILL
+                paint.shader = android.graphics.RadialGradient(cx, cy, radius * 1.55f,
+                    intArrayOf(0x3545C86D, 0x152B9E5A, 0x070C2C21, 0x00030706),
+                    floatArrayOf(0f, 0.37f, 0.70f, 1f), android.graphics.Shader.TileMode.CLAMP)
+                canvas.drawRect(0f, 0f, w, h, paint)
+                paint.shader = null
+                for (i in 25 downTo 1) {
+                    val spread = i * dp(1.8f)
+                    paint.color = android.graphics.Color.argb(
+                        (4 + (25 - i) * 0.45f).toInt().coerceIn(0, 22), 74, 255, 126)
+                    paint.style = android.graphics.Paint.Style.STROKE
+                    paint.strokeWidth = dp(2.4f) + spread
+                    canvas.drawCircle(cx, cy, radius * 0.68f, paint)
+                }
+                paint.color = 0x1249F37A
+                paint.strokeWidth = dp(18).toFloat()
+                canvas.drawCircle(cx, cy, radius * 0.44f, paint)
+                paint.style = android.graphics.Paint.Style.FILL
+                paint.shader = android.graphics.RadialGradient(cx, cy, radius * 0.88f,
+                    intArrayOf(0x00202020, 0x22030808, 0x88030706),
+                    floatArrayOf(0f, 0.60f, 1f), android.graphics.Shader.TileMode.CLAMP)
+                canvas.drawCircle(cx, cy, radius * 0.88f, paint)
+                paint.shader = null
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+            override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
+        }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
         text = s; textSize = size; setTextColor(color); if (bold) setTypeface(null, Typeface.BOLD)
     }
@@ -124,7 +165,7 @@ class MainActivity : Activity() {
         panel.addView(label(title, 19f, true))
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
-        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { jelly(panel); action() } }
+        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { action() } }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
@@ -132,7 +173,7 @@ class MainActivity : Activity() {
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(20), dp(20), dp(20))
-            background = rounded(surface)
+            background = glass()
             isClickable = true
             isFocusable = true
         }
@@ -141,7 +182,7 @@ class MainActivity : Activity() {
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
         jelly(panel)
-        panel.setOnClickListener { jelly(panel); onClick() }
+        panel.setOnClickListener { onClick() }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
         return heading
@@ -196,26 +237,7 @@ class MainActivity : Activity() {
         connectionStatusNote = null
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            background = object : android.graphics.drawable.Drawable() {
-                private val paint = android.graphics.Paint(3)
-                override fun draw(canvas: android.graphics.Canvas) {
-                    canvas.drawColor(backgroundColor)
-                    paint.color = 0x246B838A
-                    val step = dp(19).toFloat()
-                    var y = step
-                    while (y < bounds.height()) {
-                        var x = step
-                        while (x < bounds.width()) {
-                            canvas.drawCircle(x, y, dp(0.65f), paint)
-                            x += step
-                        }
-                        y += step
-                    }
-                }
-                override fun setAlpha(alpha: Int) {}
-                override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
-                override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
-            }
+            background = dialBackdrop()
         }
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
@@ -235,7 +257,7 @@ class MainActivity : Activity() {
                 }
                 val installStatus = label("Установка ещё не запускалась", 14f, color = accent)
                 val progressFrame = FrameLayout(this).apply {
-                    background = rounded(surface)
+                    background = glass()
                     clipToOutline = true
                 }
                 val progressFill = View(this).apply { setBackgroundColor(0x665BFF9B) }
@@ -319,7 +341,8 @@ class MainActivity : Activity() {
                     }
                 }
                 jelly(progressFrame)
-                progressFrame.setOnClickListener { if (progressFrame.isEnabled) { jelly(progressFrame); installButton.performClick() } }
+                jelly(progressFrame)
+                progressFrame.setOnClickListener { if (progressFrame.isEnabled) { installButton.performClick() } }
                 content.addView(progressFrame, LinearLayout.LayoutParams(-1, dp(88)))
                 content.addView(gap(8))
                 content.addView(installStatus)
@@ -374,6 +397,7 @@ class MainActivity : Activity() {
                                             }
                                         }
                                     }
+                                    jelly(removeFrame)
                                     removeFrame.setOnClickListener {
                                         if (removing || watchOperation.get()) return@setOnClickListener
                                         android.app.AlertDialog.Builder(this@MainActivity)
@@ -383,7 +407,6 @@ class MainActivity : Activity() {
                                             .setPositiveButton("Удалить") { _, _ ->
                                                 if (!watchOperation.compareAndSet(false, true)) return@setPositiveButton
                                                 removing = true
-                                                jelly(removeFrame)
                                                 advanceRemoval(12, "Подключение · 12%")
                                                 inventoryStatus.text = "Удаляем ${displayName}…"
                                                 thread {
@@ -464,17 +487,33 @@ class MainActivity : Activity() {
                 setHintTextColor(0xff9FA9B9.toInt())
                 inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
             }
-        content.addView(label("Поиск выполняется по Wi-Fi. На часах должна быть включена беспроводная отладка.", 14f, color = 0xffB8C0D0.toInt()))
-        val ip = field("IP часов (резервный ввод)", watchAddress)
-        val adbPort = field("Порт ADB (резервный ввод)", connectionPort, true)
-        content.addView(ip)
-        content.addView(adbPort)
-        content.addView(label("Только для первого сопряжения: открой на часах «Сопряжение с кодом».", 13f, color = 0xffB8C0D0.toInt()))
-        val pairPort = field("Порт сопряжения (если нужен)", pairingPort, true)
-        val pin = field("Шестизначный код (если нужен)", "", true)
+        content.addView(label("Автоматический поиск по Wi-Fi. Для установки включи беспроводную отладку на часах.", 14f, color = 0xffB8C9BE.toInt()))
+        content.addView(gap(14))
+        fun groupedFields(title: String, description: String, left: EditText, right: EditText) {
+            val panel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(16), dp(16))
+                background = glass(22)
+            }
+            panel.addView(label(title, 17f, true))
+            panel.addView(gap(5))
+            panel.addView(label(description, 12f, color = 0xffA5B9AE.toInt()))
+            panel.addView(gap(12))
+            val fields = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            fields.addView(left, LinearLayout.LayoutParams(0, dp(54), 1f))
+            fields.addView(Space(this), LinearLayout.LayoutParams(dp(10), 1))
+            fields.addView(right, LinearLayout.LayoutParams(0, dp(54), 1f))
+            panel.addView(fields)
+            content.addView(panel, LinearLayout.LayoutParams(-1, -2))
+            content.addView(gap(14))
+        }
+        val ip = field("IP часов", watchAddress)
+        val adbPort = field("Порт ADB", connectionPort, true)
+        groupedFields("Подключение", "Определяются автоматически · можно ввести вручную", ip, adbPort)
+        val pairPort = field("Порт сопряжения", pairingPort, true)
+        val pin = field("Код из 6 цифр", "", true)
         pin.filters = arrayOf(android.text.InputFilter.LengthFilter(6))
-        content.addView(pairPort)
-        content.addView(pin)
+        groupedFields("Первое сопряжение", "Заполняется только при первом подключении", pairPort, pin)
         content.addView(gap(18))
         val status = label("○ ADB не подключено", 15f, color = accent)
         val button = TextView(this).apply {
