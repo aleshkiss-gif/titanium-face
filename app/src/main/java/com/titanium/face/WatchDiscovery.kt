@@ -15,6 +15,7 @@ object WatchDiscovery {
         val latch = CountDownLatch(1)
         val found = java.util.concurrent.atomic.AtomicReference<Endpoint?>()
         val resolving = java.util.concurrent.atomic.AtomicBoolean(false)
+        val pending = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) {}
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) { latch.countDown() }
@@ -22,21 +23,29 @@ object WatchDiscovery {
             override fun onDiscoveryStopped(serviceType: String) {}
             override fun onServiceLost(serviceInfo: NsdServiceInfo) {}
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                pending.add(serviceInfo)
+                resolveNext()
+            }
+            private fun resolveNext() {
                 if (!resolving.compareAndSet(false, true)) return
+                val next = pending.poll()
+                if (next == null) { resolving.set(false); return }
                 @Suppress("DEPRECATION")
-                nsd.resolveService(serviceInfo, object : NsdManager.ResolveListener {
+                nsd.resolveService(next, object : NsdManager.ResolveListener {
                     override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                         resolving.set(false)
+                        resolveNext()
                     }
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                         @Suppress("DEPRECATION")
                         val host = serviceInfo.host?.hostAddress
                         if (host != null && serviceInfo.port in 1..65535) {
                             val endpoint = Endpoint(host, serviceInfo.port, serviceInfo.serviceName)
-                            if (found.get() == null || host == preferredHost) found.set(endpoint)
+                            if (preferredHost.isNullOrBlank() || host == preferredHost) found.set(endpoint)
                             if (host == preferredHost || preferredHost.isNullOrBlank()) latch.countDown()
                         }
                         resolving.set(false)
+                        resolveNext()
                     }
                 })
             }
