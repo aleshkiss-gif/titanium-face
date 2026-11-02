@@ -19,60 +19,42 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Restore persistent debug signing key
-        id: signing-key
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: titanium-face-debug-signing-v1
-      - name: Verify signing identity is available
+      - name: Restore permanent signing key from GitHub Secrets
         env:
           SIGNING_KEY_BASE64: ${{ secrets.TITANIUM_SIGNING_KEY_BASE64 }}
+          TITANIUM_SIGNING_STORE_PASSWORD: ${{ secrets.TITANIUM_SIGNING_STORE_PASSWORD }}
+          TITANIUM_SIGNING_KEY_ALIAS: ${{ secrets.TITANIUM_SIGNING_KEY_ALIAS }}
+          TITANIUM_SIGNING_KEY_PASSWORD: ${{ secrets.TITANIUM_SIGNING_KEY_PASSWORD }}
         run: |
-          mkdir -p "$HOME/.android"
-          if [ -n "$SIGNING_KEY_BASE64" ]; then
-            printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
-            echo "Using permanent signing identity from GitHub Secrets"
-          elif [ "${{ steps.signing-key.outputs.cache-hit }}" = "true" ]; then
-            echo "Using existing cached signing identity"
-          else
-            echo "::error::Signing identity missing. Refusing to generate a different key. Configure TITANIUM_SIGNING_KEY_BASE64 secret."
+          set -euo pipefail
+          if [ -z "$SIGNING_KEY_BASE64" ] || [ -z "$TITANIUM_SIGNING_STORE_PASSWORD" ] || [ -z "$TITANIUM_SIGNING_KEY_ALIAS" ] || [ -z "$TITANIUM_SIGNING_KEY_PASSWORD" ]; then
+            echo "::error::Permanent signing secrets are missing. Configure all four TITANIUM_SIGNING_* secrets."
             exit 1
           fi
-          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
-      - name: Verify APK signing identity
+          mkdir -p "$RUNNER_TEMP/titanium-signing"
+          printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/titanium-signing/release.jks"
+          chmod 600 "$RUNNER_TEMP/titanium-signing/release.jks"
+          echo "TITANIUM_SIGNING_FILE=$RUNNER_TEMP/titanium-signing/release.jks" >> "$GITHUB_ENV"
+          keytool -list -keystore "$RUNNER_TEMP/titanium-signing/release.jks" -storepass "$TITANIUM_SIGNING_STORE_PASSWORD" -alias "$TITANIUM_SIGNING_KEY_ALIAS" >/dev/null
+      - name: Build APK with permanent signing identity
         env:
-          EXPECTED_SHA256: "197B775DA8D1B00776086E0FA5E61F6FE5C4EA14EBAEBC88AD25D6282D5AE269"
-        run: |
-          ACTUAL_SHA256="$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep 'SHA256:' | head -1 | sed 's/.*SHA256: *//' | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')"
-          echo "Actual signing certificate SHA256: ${ACTUAL_SHA256}"
-          if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "::error::Signing certificate differs from the approved APK. Build stopped to prevent incompatible updates."
-            exit 1
-          fi
-          echo "Verified stable APK signing identity."
-      - name: Build debug APK
+          TITANIUM_SIGNING_STORE_PASSWORD: ${{ secrets.TITANIUM_SIGNING_STORE_PASSWORD }}
+          TITANIUM_SIGNING_KEY_ALIAS: ${{ secrets.TITANIUM_SIGNING_KEY_ALIAS }}
+          TITANIUM_SIGNING_KEY_PASSWORD: ${{ secrets.TITANIUM_SIGNING_KEY_PASSWORD }}
         run: gradle :app:assembleDebug --no-daemon
-      - name: Verify actual APK signing certificate
+      - name: Verify final APK certificate
         env:
-          EXPECTED_SHA256: "197B775DA8D1B00776086E0FA5E61F6FE5C4EA14EBAEBC88AD25D6282D5AE269"
+          EXPECTED_SHA256: "3A5117A7B9D350462644B98DA433EDEA268F4141781F9CA082029196BA966C93"
         run: |
+          set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
           ACTUAL_SHA256="$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d '[:space:]:' | tr '[:lower:]' '[:upper:]')"
           echo "Final APK certificate SHA256: $ACTUAL_SHA256"
           if [ -z "$ACTUAL_SHA256" ] || [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
-            echo "::error::Final APK is not signed with approved certificate."
+            echo "::error::Final APK does not use permanent approved certificate."
             exit 1
           fi
-      - name: Save signing key for future builds
-        if: steps.signing-key.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: titanium-face-debug-signing-v1
-      - name: Show signing certificate fingerprint
-        run: keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E 'SHA256:|SHA1:'
       - uses: actions/upload-artifact@v4
         with:
           name: titanium-face-debug
