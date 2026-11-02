@@ -30,7 +30,7 @@ class MainActivity : Activity() {
     private var selectedSize: Long = -1
     private var apkInfo = "Не проверено"
     private var selectedUri: Uri? = null
-    private var currentTab = 0
+    private var currentTab = 1
     private var watchAddress = ""
     private var pairingPort = ""
     private var connectionPort = ""
@@ -83,7 +83,7 @@ class MainActivity : Activity() {
         watchAddress = prefs.getString("watch_ip", "") ?: ""
         connectionPort = prefs.getString("adb_port", "") ?: ""
         pairingPort = prefs.getString("pairing_port", "") ?: ""
-        show(0)
+        show(1)
     }
     private fun ensureWatchConnected(): WatchAdbManager {
         val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
@@ -128,11 +128,6 @@ class MainActivity : Activity() {
         content.addView(label(when(tab) { 0 -> "Коллекция циферблатов"; 1 -> "Файлы и установка"; else -> "Подключение Galaxy Watch" }, 15f, color = accent))
         content.addView(gap(30))
         when(tab) {
-            0 -> {
-                card("◉  TITANIUM ULTRA", "Фирменный циферблат. Скоро здесь появятся превью и загрузка APK.")
-                card("✦  Новые коллекции", "Спортивные, классические и минималистичные циферблаты.")
-                card("♡  Избранное", "В будущей версии здесь будут сохранённые циферблаты.")
-            }
             1 -> {
                 if (selectedUri != null) {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
@@ -288,9 +283,9 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.26 • Прогресс установки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.27 • Две вкладки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
-        listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
+        listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
                 text = name; gravity = Gravity.CENTER; textSize = 14f
                 setTextColor(if (index == tab) accent else 0xffB5BDCB.toInt())
