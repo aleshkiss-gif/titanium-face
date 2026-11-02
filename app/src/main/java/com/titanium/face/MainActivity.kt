@@ -126,7 +126,7 @@ class MainActivity : Activity() {
                 val w = bounds.width().toFloat()
                 val h = bounds.height().toFloat()
                 if (w <= 0f || h <= 0f) return
-                canvas.drawColor(0xff050A13.toInt())
+                canvas.drawColor(0xff071426.toInt())
                 paint.style = android.graphics.Paint.Style.FILL
                 paint.shader = android.graphics.RadialGradient(
                     w * 0.5f, h * 0.38f, w * 0.95f,
@@ -137,19 +137,24 @@ class MainActivity : Activity() {
                 paint.shader = null
 
                 // Deep blue dotted field: gently drifting waves of light.
-                val spacing = dp(23).toFloat()
+                // Dense luminous dots flowing as a soft fabric suspended in water.
+                val spacing = dp(13).toFloat()
                 val columns = (w / spacing).toInt() + 2
                 val rows = (h / spacing).toInt() + 2
                 for (iy in 0..rows) {
                     for (ix in 0..columns) {
                         val x = ix * spacing + (iy % 2) * spacing * 0.5f
                         val y = iy * spacing
-                        val wave = kotlin.math.sin(ix * 0.43f + iy * 0.29f - backdropPhase).toFloat()
-                        val drift = kotlin.math.sin(iy * 0.32f + backdropPhase * 0.7f).toFloat() * dp(2)
-                        val glow = ((wave + 1f) * 0.5f)
-                        val alpha = (18 + glow * 68).toInt().coerceIn(0, 255)
-                        paint.color = Color.argb(alpha, 70, 162, 255)
-                        canvas.drawCircle(x + drift, y, dp(0.9f) + glow * dp(0.7f), paint)
+                        val nx = x / w
+                        val ny = y / h
+                        val fold = kotlin.math.sin(nx * 12.5f + backdropPhase + kotlin.math.sin(ny * 8f + backdropPhase * 0.8f) * 1.4f).toFloat()
+                        val crossFold = kotlin.math.sin(ny * 16f - backdropPhase * 1.1f + nx * 5f).toFloat()
+                        val waveY = fold * dp(9) + crossFold * dp(4)
+                        val waveX = kotlin.math.sin(ny * 9f + backdropPhase * 0.7f).toFloat() * dp(5)
+                        val highlight = ((fold * 0.6f + crossFold * 0.4f + 1f) * 0.5f).coerceIn(0f, 1f)
+                        val alpha = (32 + highlight * 150).toInt().coerceIn(0, 255)
+                        paint.color = Color.argb(alpha, 45, 166, 255)
+                        canvas.drawCircle(x + waveX, y + waveY, dp(0.55f) + highlight * dp(0.65f), paint)
                     }
                 }
 
@@ -178,7 +183,7 @@ class MainActivity : Activity() {
         backdropAnimator?.cancel()
         val animated = drawable
         backdropAnimator = android.animation.ValueAnimator.ofFloat(0f, (Math.PI * 2).toFloat()).apply {
-            duration = 11000L
+            duration = 7700L
             repeatCount = android.animation.ValueAnimator.INFINITE
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener {
