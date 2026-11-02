@@ -25,14 +25,21 @@ jobs:
         with:
           path: ~/.android/debug.keystore
           key: titanium-face-debug-signing-v1
-      - name: Create signing key only on first run
-        if: steps.signing-key.outputs.cache-hit != 'true'
+      - name: Verify signing identity is available
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.TITANIUM_SIGNING_KEY_BASE64 }}
         run: |
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" \
-            -storepass android -alias androiddebugkey -keypass android \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Titanium Face Debug,OU=Development,O=Titanium Face,C=US"
+          if [ -n "$SIGNING_KEY_BASE64" ]; then
+            printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$HOME/.android/debug.keystore"
+            echo "Using permanent signing identity from GitHub Secrets"
+          elif [ "${{ steps.signing-key.outputs.cache-hit }}" = "true" ]; then
+            echo "Using existing cached signing identity"
+          else
+            echo "::error::Signing identity missing. Refusing to generate a different key. Configure TITANIUM_SIGNING_KEY_BASE64 secret."
+            exit 1
+          fi
+          keytool -list -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey >/dev/null
       - name: Build debug APK
         run: gradle :app:assembleDebug --no-daemon
       - name: Save signing key for future builds
