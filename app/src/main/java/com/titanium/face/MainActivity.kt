@@ -38,6 +38,35 @@ class MainActivity : Activity() {
     private var adbConnected = false
     private var connectionStatusView: TextView? = null
     private var connectionStatusNote: TextView? = null
+    private val statusHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val statusPoll = object : Runnable {
+        override fun run() {
+            if (currentTab == 1 || currentTab == 2) {
+                if (watchOperation.compareAndSet(false, true)) {
+                    thread {
+                        val alive = try {
+                            val manager = adbManager
+                            manager != null && WatchApkInstaller.probe(manager)
+                        } catch (_: Exception) { false }
+                        runOnUiThread {
+                            watchOperation.set(false)
+                            if (alive) {
+                                adbConnected = true
+                                connectionMessage = "● Часы подключены"
+                                updateConnectionStatus()
+                            } else {
+                                adbConnected = false
+                                connectionMessage = "◌ Часы в режиме ожидания · ждём пробуждения"
+                                updateConnectionStatus()
+                                autoReconnect()
+                            }
+                        }
+                    }
+                }
+            }
+            statusHandler.postDelayed(this, 15000L)
+        }
+    }
     private var pairingCodeDraft = ""
     private var inventoryRefresh: (() -> Unit)? = null
     private val watchOperation = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -191,6 +220,7 @@ class MainActivity : Activity() {
         pairingPort = prefs.getString("pairing_port", "") ?: ""
         show(1)
         autoReconnect()
+        statusHandler.postDelayed(statusPoll, 15000L)
     }
     private var lastAutoConnectAt = 0L
     private var connectionMessage = "○ ADB не подключено"
@@ -208,7 +238,7 @@ class MainActivity : Activity() {
                 ensureWatchConnected()
                 "● Часы подключены"
             } catch (e: Exception) {
-                "○ Не удалось подключиться автоматически. Проверь Wi-Fi и порт ADB."
+                "◌ Часы в режиме ожидания · ждём пробуждения"
             }
             runOnUiThread {
                 connectionMessage = outcome
@@ -221,7 +251,16 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::content.isInitialized) autoReconnect()
+        if (::content.isInitialized) {
+            autoReconnect()
+            statusHandler.removeCallbacks(statusPoll)
+            statusHandler.postDelayed(statusPoll, 15000L)
+        }
+    }
+
+    override fun onPause() {
+        statusHandler.removeCallbacks(statusPoll)
+        super.onPause()
     }
 
     private fun ensureWatchConnected(): WatchAdbManager {
@@ -301,7 +340,24 @@ class MainActivity : Activity() {
         content.addView(label("WatchFace Manager", 29f, true))
         content.addView(gap(7))
         content.addView(label(when(tab) { 0 -> "Коллекция циферблатов"; 1 -> "Файлы и установка"; else -> "Подключение Galaxy Watch" }, 15f, color = accent))
-        content.addView(gap(30))
+        content.addView(gap(16))
+        if (tab == 1) {
+            val panel = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+                background = glass(20)
+            }
+            panel.addView(label("СОЕДИНЕНИЕ С ЧАСАМИ", 12f, true, color = accent))
+            panel.addView(gap(7))
+            connectionStatusView = label(connectionMessage, 15f, true)
+            panel.addView(connectionStatusView)
+            connectionStatusNote = label("Автоматическое восстановление после пробуждения", 12f, color = 0xffA5B9AE.toInt())
+            panel.addView(gap(5))
+            panel.addView(connectionStatusNote)
+            content.addView(panel)
+            updateConnectionStatus()
+            content.addView(gap(20))
+        } else content.addView(gap(14))
         when(tab) {
             1 -> {
                 if (selectedUri != null) {
