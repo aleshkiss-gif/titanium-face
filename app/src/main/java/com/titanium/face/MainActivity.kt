@@ -36,6 +36,7 @@ class MainActivity : Activity() {
     private var connectionPort = ""
     private var adbManager: WatchAdbManager? = null
     private var adbConnected = false
+    private var connectionStatusView: TextView? = null
     private var pairingCodeDraft = ""
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
@@ -59,6 +60,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         watchAddress = prefs.getString("watch_ip", "") ?: ""
         connectionPort = prefs.getString("adb_port", "") ?: ""
+        pairingPort = prefs.getString("pairing_port", "") ?: ""
         show(0)
     }
     private fun ensureWatchConnected(): WatchAdbManager {
@@ -69,9 +71,11 @@ class MainActivity : Activity() {
         require(host.isNotEmpty() && port != null && port in 1..65535) {
             "Сначала укажи IP и порт подключения на вкладке «Часы»"
         }
-        require(manager.connect(host, port)) {
+        val connected = try { manager.connect(host, port) } catch (_: Exception) { false }
+        require(connected) {
             "Не удалось восстановить ADB. Проверь беспроводную отладку и текущий порт часов"
         }
+        adbConnected = true
         return manager
     }
 
@@ -104,7 +108,6 @@ class MainActivity : Activity() {
                     text = "Установить выбранный APK на часы"; isAllCaps = false
                     setOnClickListener {
                         val uri = selectedUri
-                        val manager = adbManager
                         if (uri == null) {
                             installStatus.text = "Сначала выбери APK циферблата"
                         } else {
@@ -164,6 +167,7 @@ class MainActivity : Activity() {
                 content.addView(uninstallStatus)
             }
             else -> {
+                card("Профиль: Galaxy Watch Ultra", "IP, порты и защищённый ключ сохраняются. После первого сопряжения повторно вводить шестизначный код обычно не нужно. Если порт часов изменился, приложение попробует найти новый автоматически.")
                 card("1. Включить режим разработчика", "На часах: Настройки → О часах → Сведения о ПО. Несколько раз нажми «Версия ПО», пока не появится режим разработчика.")
                 card("2. Включить беспроводную отладку", "В параметрах разработчика часов включи ADB и беспроводную отладку. Часы и телефон должны быть в одной Wi-Fi сети.")
                 pairingForm()
@@ -171,7 +175,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.18 • Автоподключение ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.19 • Профиль часов", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -198,7 +202,8 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         val code = EditText(this).apply {
-            hint = "Шестизначный код"; setSingleLine(true)
+            hint = "000000"; setSingleLine(true); textSize = 32f; gravity = Gravity.CENTER
+            filters = arrayOf(android.text.InputFilter.LengthFilter(6))
             setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
         }
@@ -214,10 +219,13 @@ class MainActivity : Activity() {
         track(port) { pairingPort = it }
         track(code) { pairingCodeDraft = it }
         code.setText(pairingCodeDraft)
-        content.addView(label("1. IP-АДРЕС ЧАСОВ", 17f, color = accent))
+        content.addView(label("КОД СОПРЯЖЕНИЯ (6 ЦИФР)", 19f, true, accent))
+        content.addView(label("Только при первом сопряжении. Код не сохраняется.", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(code); content.addView(gap(20))
+        content.addView(label("IP-АДРЕС ЧАСОВ", 16f, color = accent))
         content.addView(label("Основной экран «Беспроводная отладка». Пример: 192.168.1.75", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(ip); content.addView(gap(18))
-        content.addView(label("2. ПОРТ СОПРЯЖЕНИЯ", 17f, color = accent))
+        content.addView(label("ПОРТ СОПРЯЖЕНИЯ", 16f, color = accent))
         content.addView(label("Экран «Сопрячь устройство с помощью кода». Временный порт рядом с шестизначным кодом.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(port); content.addView(gap(18))
         val adbPort = EditText(this).apply {
@@ -226,20 +234,18 @@ class MainActivity : Activity() {
             inputType = InputType.TYPE_CLASS_NUMBER
         }
         track(adbPort) { connectionPort = it }
-        content.addView(label("3. ПОРТ ПОДКЛЮЧЕНИЯ ADB", 17f, color = accent))
+        content.addView(label("ПОРТ ПОДКЛЮЧЕНИЯ ADB", 16f, color = accent))
         content.addView(label("Основной экран «Беспроводная отладка»: число ПОСЛЕ двоеточия в IP:порт. Не путай с портом сопряжения.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(adbPort); content.addView(gap(18))
-        content.addView(label("4. ШЕСТИЗНАЧНЫЙ КОД СОПРЯЖЕНИЯ", 17f, color = accent))
-        content.addView(label("С экрана сопряжения на часах. Код не сохраняется.", 13f, color = 0xffB8C0D0.toInt()))
-        content.addView(code); content.addView(gap(12))
-        content.addView(label("Код и порт сопряжения после перезапуска вводятся заново. IP и порт подключения ADB сохраняются.", 13f, color = 0xffB8C0D0.toInt()))
+
+        content.addView(label("IP и оба порта сохраняются в профиле. Код не сохраняется. Порт подключения может меняться после перезапуска отладки.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(gap(12))
         val button = Button(this).apply {
             text = "Проверить данные"; isAllCaps = false
             setOnClickListener {
                 watchAddress = ip.text.toString().trim()
                 pairingPort = port.text.toString().trim()
-                prefs.edit().putString("watch_ip", watchAddress).apply()
+                prefs.edit().putString("watch_ip", watchAddress).putString("pairing_port", pairingPort).putString("adb_port", adbPort.text.toString().trim()).apply()
                 val validIp = watchAddress.split(".").let { parts ->
                     parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
                 }
@@ -249,7 +255,6 @@ class MainActivity : Activity() {
                     "Формат данных верный. Теперь нажми «Сопрячь часы по коду (тест)» и введи свежий код."
                 else "Проверь IP, порт и шестизначный код."
                 Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-                code.text.clear()
             }
         }
         content.addView(button)
@@ -348,7 +353,7 @@ class MainActivity : Activity() {
                             android.util.Log.e("TitaniumAdbTls", "Connect failed", e)
                             "Ошибка TLS: " + (e.javaClass.simpleName + ": " + (e.localizedMessage ?: "нет описания")).take(550)
                         }
-                        runOnUiThread { tlsStatus.text = message }
+                        runOnUiThread { tlsStatus.text = message; connectionStatusView?.text = if (adbManager?.isConnected == true) "● ADB подключено" else "○ ADB не подключено" }
                     }
                 }
             }
@@ -357,7 +362,11 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(tlsStatus)
         content.addView(gap(14))
-        card(if (adbManager?.isConnected == true) "Статус: ADB подключено" else "Статус: не подключено", "Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
+        val liveStatus = label(if (adbManager?.isConnected == true) "● ADB подключено" else "○ ADB не подключено", 20f, true, accent)
+        connectionStatusView = liveStatus
+        content.addView(liveStatus)
+        content.addView(label("Профиль: Galaxy Watch Ultra · ключ хранится в зашифрованном виде", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(gap(16))
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
         val keyButton = Button(this).apply {
             text = "Создать защищённый ключ устройства"; isAllCaps = false
