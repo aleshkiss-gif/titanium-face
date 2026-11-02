@@ -61,6 +61,20 @@ class MainActivity : Activity() {
         connectionPort = prefs.getString("adb_port", "") ?: ""
         show(0)
     }
+    private fun ensureWatchConnected(): WatchAdbManager {
+        val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
+        if (manager.isConnected) return manager
+        val host = prefs.getString("watch_ip", watchAddress)?.trim().orEmpty()
+        val port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
+        require(host.isNotEmpty() && port != null && port in 1..65535) {
+            "Сначала укажи IP и порт подключения на вкладке «Часы»"
+        }
+        require(manager.connect(host, port)) {
+            "Не удалось восстановить ADB. Проверь беспроводную отладку и текущий порт часов"
+        }
+        return manager
+    }
+
     private fun show(tab: Int) {
         currentTab = tab
         val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
@@ -93,15 +107,13 @@ class MainActivity : Activity() {
                         val manager = adbManager
                         if (uri == null) {
                             installStatus.text = "Сначала выбери APK циферблата"
-                        } else if (manager == null || !manager.isConnected) {
-                            installStatus.text = "Сначала открой вкладку «Часы» и подключись по ADB TLS"
                         } else {
                             isEnabled = false
                             installStatus.text = "Подготовка APK…"
                             thread {
                                 val message = try {
                                     val apk = ApkArchiveReader.extract(this@MainActivity, uri, selectedName)
-                                    val response = WatchApkInstaller.install(manager, apk) { percent ->
+                                    val response = WatchApkInstaller.install(ensureWatchConnected(), apk) { percent ->
                                         runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
                                     }
                                     apk.delete()
@@ -129,15 +141,12 @@ class MainActivity : Activity() {
                             .setMessage("С часов будет удалён пакет com.titanium.ultra. Продолжить?")
                             .setNegativeButton("Отмена", null)
                             .setPositiveButton("Удалить") { _, _ ->
-                                val manager = adbManager
-                                if (manager == null || !manager.isConnected) {
-                                    uninstallStatus.text = "Сначала подключись к часам по ADB TLS во вкладке «Часы»"
-                                } else {
+                                run {
                                     isEnabled = false
                                     uninstallStatus.text = "Удаляем старый циферблат…"
                                     thread {
                                         val message = try {
-                                            val result = WatchApkInstaller.uninstallOldTitanium(manager)
+                                            val result = WatchApkInstaller.uninstallOldTitanium(ensureWatchConnected())
                                             "TITANIUM ULTRA удалён с часов: $result"
                                         } catch (e: Exception) {
                                             android.util.Log.e("TitaniumUninstall", "Uninstall failed", e)
@@ -162,7 +171,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.17 • APK и ZIP", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.18 • Автоподключение ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
