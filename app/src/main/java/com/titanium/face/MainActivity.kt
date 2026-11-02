@@ -193,24 +193,28 @@ class MainActivity : Activity() {
     }
     private fun ensureWatchConnected(): WatchAdbManager {
         val host = prefs.getString("watch_ip", watchAddress)?.trim().orEmpty()
-        val port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
-        require(host.isNotEmpty() && port != null && port in 1..65535) {
-            "Укажи IP и порт ADB на вкладке «Часы»"
-        }
+        var port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
+        require(host.isNotBlank()) { "Укажи IP часов на вкладке «Часы»" }
         val existing = adbManager
         if (existing?.isConnected == true) return existing
-        try {
-            Socket().use { socket -> socket.connect(InetSocketAddress(host, port), 2500) }
-        } catch (e: Exception) {
-            adbManager = null
-            throw IllegalStateException("Порт $port недоступен на $host. Проверь текущий порт беспроводной отладки.", e)
+
+        // Wireless debugging may change the TLS port after pairing or reconnecting.
+        // Resolve the currently advertised endpoint for this exact watch before retrying.
+        val discovered = try { WatchDiscovery.find(applicationContext, host, 3500) } catch (_: Exception) { null }
+        if (discovered != null && discovered.host == host) {
+            port = discovered.port
+            connectionPort = port.toString()
+            prefs.edit().putString("adb_port", connectionPort).apply()
         }
+        require(port != null && port in 1..65535) {
+            "Не найден порт ADB. Проверь беспроводную отладку на часах."
+        }
+
         var lastError: Exception? = null
+        // Reuse the just-paired manager first, then create fresh TLS sessions.
         repeat(3) { attempt ->
             try {
-                // A failed TLS handshake can leave the previous manager unusable.
-                // Always create a fresh connection object, preserving the stored identity.
-                val candidate = WatchAdbManager(applicationContext)
+                val candidate = if (attempt == 0 && existing != null) existing else WatchAdbManager(applicationContext)
                 if (candidate.connect(host, port) && candidate.isConnected) {
                     adbManager = candidate
                     adbConnected = true
@@ -218,13 +222,13 @@ class MainActivity : Activity() {
                     return candidate
                 }
             } catch (e: Exception) { lastError = e }
-            if (attempt < 2) Thread.sleep(600L * (attempt + 1))
+            if (attempt < 2) Thread.sleep(450L * (attempt + 1))
         }
         adbManager = null
         adbConnected = false
         runOnUiThread { updateConnectionStatus() }
         throw IllegalStateException(
-            "Не удалось восстановить ADB TLS. Если сопряжение уже выполнено, проверь порт ADB и попробуй подключиться снова без кода.",
+            "ADB TLS не подключилось к $host:$port. Проверь порт беспроводной отладки; если сопряжение потеряно, выполни его заново.",
             lastError
         )
     }
@@ -570,7 +574,7 @@ class MainActivity : Activity() {
                                 ". Открой новый код сопряжения на часах и введи новый порт.", e)
                         }
                         require(paired) { "Часы отклонили сопряжение. Открой новый код и порт сопряжения." }
-                        adbManager = null
+                        adbManager = pairingManager
                     }
                     ensureWatchConnected()
                     "Соединение установлено: $host:$port"
