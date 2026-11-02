@@ -22,9 +22,9 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 
 class MainActivity : Activity() {
-    private val backgroundColor = Color.rgb(11, 13, 19)
-    private val surface = Color.rgb(28, 32, 42)
-    private val accent = Color.rgb(114, 177, 255)
+    private val backgroundColor = Color.rgb(5, 7, 10)
+    private val surface = Color.rgb(27, 33, 39)
+    private val accent = Color.rgb(135, 191, 255)
     private lateinit var content: LinearLayout
     private var selectedName: String? = null
     private var selectedSize: Long = -1
@@ -47,7 +47,28 @@ class MainActivity : Activity() {
         if (pkg.matches(Regex("[a-zA-Z_][a-zA-Z0-9_.]*"))) managedPrefs.edit().putString(pkg, name).apply()
     }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
-    private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
+    private fun dp(n: Float) = (n * resources.displayMetrics.density)
+    private fun rounded(color: Int, radius: Int = 22) = GradientDrawable(
+        GradientDrawable.Orientation.TL_BR,
+        intArrayOf(0xff343F45.toInt(), color, 0xff141B21.toInt())
+    ).apply {
+        cornerRadius = dp(radius).toFloat()
+        setStroke(dp(1), 0x44A4C7CA)
+    }
+    private fun jelly(view: View) {
+        view.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    v.animate().scaleX(0.965f).scaleY(0.965f).setDuration(110).start()
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(420)
+                        .setInterpolator(android.view.animation.OvershootInterpolator(2.1f)).start()
+                }
+            }
+            false
+        }
+    }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
         text = s; textSize = size; setTextColor(color); if (bold) setTypeface(null, Typeface.BOLD)
     }
@@ -59,7 +80,7 @@ class MainActivity : Activity() {
         panel.addView(label(title, 19f, true))
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
-        if (action != null) { panel.isClickable = true; panel.setOnClickListener { action() } }
+        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { action() } }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
@@ -75,6 +96,7 @@ class MainActivity : Activity() {
         panel.addView(heading)
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
+        jelly(panel)
         panel.setOnClickListener { onClick() }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
@@ -128,7 +150,29 @@ class MainActivity : Activity() {
         inventoryRefresh = null
         connectionStatusView = null
         connectionStatusNote = null
-        val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
+        val frame = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = object : android.graphics.drawable.Drawable() {
+                private val paint = android.graphics.Paint(3)
+                override fun draw(canvas: android.graphics.Canvas) {
+                    canvas.drawColor(backgroundColor)
+                    paint.color = 0x246B838A
+                    val step = dp(19).toFloat()
+                    var y = step
+                    while (y < bounds.height()) {
+                        var x = step
+                        while (x < bounds.width()) {
+                            canvas.drawCircle(x, y, dp(0.65f), paint)
+                            x += step
+                        }
+                        y += step
+                    }
+                }
+                override fun setAlpha(alpha: Int) {}
+                override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+                override fun getOpacity(): Int = android.graphics.PixelFormat.OPAQUE
+            }
+        }
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
@@ -230,14 +274,15 @@ class MainActivity : Activity() {
                         }
                     }
                 }
+                jelly(progressFrame)
                 progressFrame.setOnClickListener { if (progressFrame.isEnabled) installButton.performClick() }
                 content.addView(progressFrame, LinearLayout.LayoutParams(-1, dp(88)))
                 content.addView(gap(8))
                 content.addView(installStatus)
                 content.addView(gap(24))
-                content.addView(label("Установленные через TITANIUM FACE", 21f, true))
+                content.addView(label("Установленные", 21f, true))
                 content.addView(gap(8))
-                val inventoryStatus = label("Нажми «Обновить список», чтобы проверить часы.", 14f, color = accent)
+                val inventoryStatus = label("Список установленных циферблатов", 14f, color = accent)
                 val inventoryList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 fun refreshInventory() {
                     if (!watchOperation.compareAndSet(false, true)) return
@@ -249,7 +294,7 @@ class MainActivity : Activity() {
                             val managed = managedPrefs.all.filter { it.key in installed && it.value is String }
                             runOnUiThread {
                                 watchOperation.set(false)
-                                inventoryStatus.text = if (managed.isEmpty()) "Нет подтверждённых установок через TITANIUM FACE на этих часах." else "Найдено: ${managed.size}"
+                                inventoryStatus.text = if (managed.isEmpty()) "Установленные циферблаты пока не найдены." else "Найдено: ${managed.size}"
                                 for ((pkg, displayName) in managed) {
                                     val row = LinearLayout(this@MainActivity).apply {
                                         orientation = LinearLayout.VERTICAL
@@ -258,29 +303,6 @@ class MainActivity : Activity() {
                                     }
                                     row.addView(label(displayName.toString(), 18f, true))
                                     row.addView(label(pkg, 12f, color = 0xffB8C0D0.toInt()))
-                                    val delete = Button(this@MainActivity).apply {
-                                        text = "Удалить с часов"; isAllCaps = false
-                                        setOnClickListener {
-                                            android.app.AlertDialog.Builder(this@MainActivity)
-                                                .setTitle("Удалить ${displayName}?")
-                                                .setMessage("Удалить пакет ${pkg} с часов? Другие приложения не затрагиваются.")
-                                                .setNegativeButton("Отмена", null)
-                                                .setPositiveButton("Удалить") { _, _ ->
-                                                    if (!watchOperation.compareAndSet(false, true)) return@setPositiveButton
-                                                    isEnabled = false
-                                                    inventoryStatus.text = "Удаляем ${displayName}…"
-                                                    thread {
-                                                        val result = try {
-                                                            WatchApkInstaller.uninstallPackage(ensureWatchConnected(), pkg)
-                                                            managedPrefs.edit().remove(pkg).apply()
-                                                            "Удалено: $pkg"
-                                                        } catch (e: Exception) { "Ошибка удаления: " + (e.localizedMessage ?: "неизвестно") }
-                                                        runOnUiThread { inventoryStatus.text = result; isEnabled = true; watchOperation.set(false); refreshInventory() }
-                                                    }
-                                                }.show()
-                                        }
-                                    }
-                                    row.addView(delete)
                                     inventoryList.addView(row)
                                     inventoryList.addView(gap(12))
                                 }
@@ -291,7 +313,7 @@ class MainActivity : Activity() {
                     }
                 }
                 inventoryRefresh = { refreshInventory() }
-                actionCard("↻  Обновить список циферблатов", "Показать только пакеты, установленные через TITANIUM FACE и найденные на часах", { refreshInventory() })
+                actionCard("↻  Обновить список", "Проверить циферблаты на часах", { refreshInventory() })
                 content.addView(inventoryStatus)
                 content.addView(gap(12))
                 content.addView(inventoryList)
@@ -300,13 +322,13 @@ class MainActivity : Activity() {
 
             }
             else -> {
-                card("Профиль: Galaxy Watch Ultra", "IP, порты и защищённый ключ сохраняются. После первого сопряжения повторно вводить шестизначный код обычно не нужно. Если порт часов изменился, приложение попробует найти новый автоматически.")
+
                 pairingForm()
-                card("Безопасность", "После установки циферблата рекомендуется отключать беспроводную отладку.")
+
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.32 • Автопоиск часов", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.33 • Frosted OLED", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
@@ -404,6 +426,7 @@ class MainActivity : Activity() {
                 }
             }
         }
+        jelly(button)
         content.addView(button, LinearLayout.LayoutParams(-1, dp(74)))
         content.addView(gap(12))
         content.addView(status)
