@@ -69,6 +69,11 @@ object WatchApkInstaller {
         return installOutput
     }
 
+    fun uninstallOldTitanium(manager: WatchAdbManager): String {
+        require(manager.isConnected) { "Сначала подключись к часам по ADB TLS" }
+        return shell(manager, "pm uninstall com.titanium.ultra")
+    }
+
     private fun shell(manager: WatchAdbManager, command: String): String {
         val stream = manager.openStream("shell:$command")
         try {
