@@ -95,15 +95,22 @@ class MainActivity : Activity() {
         require(host.isNotEmpty() && port != null && port in 1..65535) {
             "Сначала укажи IP и порт подключения на вкладке «Часы»"
         }
+        try {
+            Socket().use { socket -> socket.connect(InetSocketAddress(host, port), 2500) }
+        } catch (e: Exception) {
+            adbManager = null
+            throw IllegalStateException("Порт ADB $port недоступен на $host. После перезагрузки часов проверь новый порт в беспроводной отладке.", e)
+        }
         var connected = false
-        repeat(3) { attempt ->
+        repeat(2) { attempt ->
             if (!connected) {
                 connected = try { manager.connect(host, port) } catch (_: Exception) { false }
-                if (!connected && attempt < 2) Thread.sleep(900L * (attempt + 1))
+                if (!connected && attempt < 1) Thread.sleep(500L)
             }
         }
-        require(connected) {
-            "Не удалось восстановить ADB. Проверь беспроводную отладку и текущий порт часов"
+        if (!connected) {
+            adbManager = null
+            throw IllegalStateException("ADB TLS не подключилось. Проверь актуальный порт часов; если порт верен, повтори сопряжение.")
         }
         adbConnected = true
         runOnUiThread { updateConnectionStatus() }
@@ -282,7 +289,8 @@ class MainActivity : Activity() {
                 content.addView(inventoryStatus)
                 content.addView(gap(12))
                 content.addView(inventoryList)
-                if (prefs.getString("watch_ip", "").orEmpty().isNotBlank() && prefs.getString("adb_port", "").orEmpty().isNotBlank()) refreshInventory()
+                // Do not start a competing ADB connection while the user is selecting a file.
+                // Inventory refreshes automatically after installation and removal.
 
             }
             else -> {
@@ -292,7 +300,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.29 • Автообновление", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.30 • Стабильность ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
@@ -559,6 +567,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != 10 || resultCode != RESULT_OK) return
         val uri = data?.data ?: return
+        try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: SecurityException) { }
         selectedUri = uri
         selectedName = null
         selectedSize = -1
