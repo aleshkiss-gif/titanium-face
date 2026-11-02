@@ -196,16 +196,14 @@ class MainActivity : Activity() {
         var port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
         require(host.isNotBlank()) { "Укажи IP часов на вкладке «Часы»" }
         val existing = adbManager
-        if (existing?.isConnected == true) return existing
-
-        // Wireless debugging may change the TLS port after pairing or reconnecting.
-        // Resolve the currently advertised endpoint for this exact watch before retrying.
-        val discovered = try { WatchDiscovery.find(applicationContext, host, 3500) } catch (_: Exception) { null }
-        if (discovered != null && discovered.host == host) {
-            port = discovered.port
-            connectionPort = port.toString()
-            prefs.edit().putString("adb_port", connectionPort).apply()
+        if (existing?.isConnected == true) {
+            try {
+                if (WatchApkInstaller.probe(existing)) return existing
+            } catch (_: Exception) { }
+            adbManager = null
+            adbConnected = false
         }
+        // Respect the port shown by the watch. mDNS may advertise stale endpoints.
         val targetPort = port?.takeIf { it in 1..65535 }
             ?: throw IllegalStateException("Не найден порт ADB. Проверь беспроводную отладку на часах.")
 
@@ -214,7 +212,7 @@ class MainActivity : Activity() {
         repeat(3) { attempt ->
             try {
                 val candidate = if (attempt == 0 && existing != null) existing else WatchAdbManager(applicationContext)
-                if (candidate.connect(host, targetPort) && candidate.isConnected) {
+                if (candidate.connect(host, targetPort) && candidate.isConnected && WatchApkInstaller.probe(candidate)) {
                     adbManager = candidate
                     adbConnected = true
                     runOnUiThread { updateConnectionStatus() }
