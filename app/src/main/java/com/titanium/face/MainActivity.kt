@@ -180,7 +180,6 @@ class MainActivity : Activity() {
         val keyButton = Button(this).apply {
             text = "Создать защищённый ключ устройства"; isAllCaps = false
             setOnClickListener {
-                isEnabled = false
                 identityStatus.text = "Подготавливаем ключ в Android Keystore…"
                 thread {
                     val message = try {
@@ -202,7 +201,7 @@ class MainActivity : Activity() {
                     } catch (e: Exception) {
                         "Не удалось создать ключ: " + (e.localizedMessage ?: "ошибка")
                     }
-                    runOnUiThread { identityStatus.text = message; keyButton.isEnabled = true }
+                    runOnUiThread { identityStatus.text = message }
                 }
             }
         }
