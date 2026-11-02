@@ -190,7 +190,39 @@ class MainActivity : Activity() {
         connectionPort = prefs.getString("adb_port", "") ?: ""
         pairingPort = prefs.getString("pairing_port", "") ?: ""
         show(1)
+        autoReconnect()
     }
+    private var lastAutoConnectAt = 0L
+    private var connectionMessage = "○ ADB не подключено"
+
+    private fun autoReconnect() {
+        if (prefs.getString("watch_ip", "").isNullOrBlank()) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastAutoConnectAt < 12000L) return
+        if (!watchOperation.compareAndSet(false, true)) return
+        lastAutoConnectAt = now
+        connectionMessage = "Подключаемся к часам…"
+        runOnUiThread { updateConnectionStatus() }
+        thread {
+            val outcome = try {
+                ensureWatchConnected()
+                "● Часы подключены"
+            } catch (e: Exception) {
+                "○ Не удалось подключиться автоматически. Проверь Wi-Fi и порт ADB."
+            }
+            runOnUiThread {
+                connectionMessage = outcome
+                watchOperation.set(false)
+                updateConnectionStatus()
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::content.isInitialized) autoReconnect()
+    }
+
     private fun ensureWatchConnected(): WatchAdbManager {
         val host = prefs.getString("watch_ip", watchAddress)?.trim().orEmpty()
         var port = prefs.getString("adb_port", connectionPort)?.toIntOrNull()
@@ -231,9 +263,9 @@ class MainActivity : Activity() {
     }
 
     private fun updateConnectionStatus() {
-        val connected = adbManager?.isConnected == true
-        connectionStatusView?.text = if (connected) "● ADB подключено" else "○ ADB не подключено"
-        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение активно" else "Galaxy Watch Ultra · нажми «Проверить подключение»"
+        val connected = adbConnected && adbManager?.isConnected == true
+        connectionStatusView?.text = if (connected) "● ADB подключено" else connectionMessage
+        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение проверено" else "Galaxy Watch Ultra · подключение через Wi-Fi"
     }
 
     private fun show(tab: Int) {
@@ -521,7 +553,8 @@ class MainActivity : Activity() {
         pin.filters = arrayOf(android.text.InputFilter.LengthFilter(6))
         groupedFields("Первое сопряжение", "Заполняется только при первом подключении", pairPort, pin)
         content.addView(gap(18))
-        val status = label("○ ADB не подключено", 15f, color = accent)
+        val status = label(connectionMessage, 15f, color = accent)
+        connectionStatusView = status
         val button = TextView(this).apply {
             text = "Подключиться к часам"
             textSize = 19f
