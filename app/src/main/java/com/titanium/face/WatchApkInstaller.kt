@@ -69,12 +69,31 @@ object WatchApkInstaller {
         return installOutput
     }
 
+    fun installedPackages(manager: WatchAdbManager): Set<String> {
+        require(manager.isConnected) { "Нет подключения к часам" }
+        return shellRaw(manager, "pm list packages -3").lineSequence()
+            .map { it.trim() }.filter { it.startsWith("package:") }
+            .map { it.removePrefix("package:").trim() }.toSet()
+    }
+
+    fun uninstallPackage(manager: WatchAdbManager, packageName: String): String {
+        require(packageName.matches(Regex("[a-zA-Z_][a-zA-Z0-9_.]*"))) { "Некорректный пакет" }
+        require(packageName in installedPackages(manager)) { "Приложение уже отсутствует на часах" }
+        return shell(manager, "pm uninstall $packageName")
+    }
+
     fun uninstallOldTitanium(manager: WatchAdbManager): String {
         require(manager.isConnected) { "Сначала подключись к часам по ADB TLS" }
         return shell(manager, "pm uninstall com.titanium.ultra")
     }
 
     private fun shell(manager: WatchAdbManager, command: String): String {
+        val result = shellRaw(manager, command)
+        if (!result.contains("Success")) error("Команда не подтверждена: $result")
+        return result
+    }
+
+    private fun shellRaw(manager: WatchAdbManager, command: String): String {
         val stream = manager.openStream("shell:$command")
         try {
             val input = stream.openInputStream()
@@ -87,9 +106,7 @@ object WatchApkInstaller {
                 if (n < 0) break
                 if (n > 0) result.append(String(buffer, 0, n, StandardCharsets.UTF_8))
             }
-            return result.toString().trim().also {
-                if (!it.contains("Success")) error("Установка не подтверждена: $it")
-            }
+            return result.toString().trim()
         } finally {
             stream.close()
         }
