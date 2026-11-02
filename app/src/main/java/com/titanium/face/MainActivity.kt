@@ -369,8 +369,8 @@ class MainActivity : Activity() {
                 content.addView(inventoryStatus)
                 content.addView(gap(12))
                 content.addView(inventoryList)
-                // Do not start a competing ADB connection while the user is selecting a file.
-                // Inventory refreshes automatically after installation and removal.
+                // Refresh only with an existing live ADB connection; never compete with a new connection.
+                if (adbManager?.isConnected == true && !watchOperation.get()) refreshInventory()
 
             }
             else -> {
