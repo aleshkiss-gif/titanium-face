@@ -13,7 +13,7 @@ import android.view.View
 import android.widget.*
 
 class MainActivity : Activity() {
-    private val background = Color.rgb(11, 13, 19)
+    private val backgroundColor = Color.rgb(11, 13, 19)
     private val surface = Color.rgb(28, 32, 42)
     private val accent = Color.rgb(114, 177, 255)
     private lateinit var content: LinearLayout
@@ -41,7 +41,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); show(0) }
     private fun show(tab: Int) {
         currentTab = tab
-        val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(background) }
+        val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
         val scroll = ScrollView(this).apply { isFillViewport = true }
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
