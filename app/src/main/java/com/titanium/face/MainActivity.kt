@@ -128,26 +128,23 @@ class MainActivity : Activity() {
                 val radius = w * 0.61f
                 paint.style = android.graphics.Paint.Style.FILL
                 paint.shader = android.graphics.RadialGradient(cx, cy, radius * 1.55f,
-                    intArrayOf(0x3545C86D, 0x152B9E5A, 0x070C2C21, 0x00030706),
+                    intArrayOf(0x142C8A50, 0x091D5636, 0x040C2C21, 0x00030706),
                     floatArrayOf(0f, 0.37f, 0.70f, 1f), android.graphics.Shader.TileMode.CLAMP)
                 canvas.drawRect(0f, 0f, w, h, paint)
                 paint.shader = null
-                for (i in 25 downTo 1) {
-                    val spread = i * dp(1.8f)
-                    paint.color = android.graphics.Color.argb(
-                        (4 + (25 - i) * 0.45f).toInt().coerceIn(0, 22), 74, 255, 126)
+                paint.typeface = Typeface.create("sans-serif-light", Typeface.BOLD)
+                paint.textAlign = android.graphics.Paint.Align.CENTER
+                paint.textSize = w * 0.27f
+                val baseline = cy - (paint.ascent() + paint.descent()) / 2f
+                for (layer in 12 downTo 1) {
                     paint.style = android.graphics.Paint.Style.STROKE
-                    paint.strokeWidth = dp(2.4f) + spread
-                    canvas.drawCircle(cx, cy, radius * 0.68f, paint)
+                    paint.strokeWidth = dp(layer * 2).toFloat()
+                    paint.color = Color.argb(2, 85, 178, 122)
+                    canvas.drawText("WFM", cx, baseline, paint)
                 }
-                paint.color = 0x1249F37A
-                paint.strokeWidth = dp(18).toFloat()
-                canvas.drawCircle(cx, cy, radius * 0.44f, paint)
                 paint.style = android.graphics.Paint.Style.FILL
-                paint.shader = android.graphics.RadialGradient(cx, cy, radius * 0.88f,
-                    intArrayOf(0x00202020, 0x22030808, 0x88030706.toInt()),
-                    floatArrayOf(0f, 0.60f, 1f), android.graphics.Shader.TileMode.CLAMP)
-                canvas.drawCircle(cx, cy, radius * 0.88f, paint)
+                paint.color = Color.argb(20, 96, 190, 130)
+                canvas.drawText("WFM", cx, baseline, paint)
                 paint.shader = null
             }
             override fun setAlpha(alpha: Int) {}
