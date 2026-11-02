@@ -83,7 +83,56 @@ class MainActivity : Activity() {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
                     card("✓  Файл выбран", (selectedName ?: "APK") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
                 } else card("Нет выбранного файла", "Выбери APK для просмотра информации.")
-                card("Установка на часы", if (adbConnected) "ADB подключено. Следующий этап — передача APK и команда установки." else "Сначала подключись к часам по ADB во вкладке «Часы».")
+                card("Установка на часы", "Выбери APK циферблата и подключись к часам по ADB TLS. Затем нажми кнопку установки.")
+                val installStatus = label("Установка ещё не запускалась", 14f, color = accent)
+                val installButton = Button(this).apply {
+                    text = "Установить выбранный APK на часы"; isAllCaps = false
+                    setOnClickListener {
+                        val uri = selectedUri
+                        val manager = adbManager
+                        if (uri == null) {
+                            installStatus.text = "Сначала выбери APK циферблата"
+                        } else if (manager == null || !manager.isConnected) {
+                            installStatus.text = "Сначала открой вкладку «Часы» и подключись по ADB TLS"
+                        } else {
+                            isEnabled = false
+                            installStatus.text = "Подготовка APK…"
+                            thread {
+                                val message = try {
+                                    val apk = File(cacheDir, "watchface-to-install.apk")
+                                    contentResolver.openInputStream(uri)?.use { source ->
+                                        apk.outputStream().use { target ->
+                                            val buffer = ByteArray(16384)
+                                            var total = 0L
+                                            while (true) {
+                                                val n = source.read(buffer)
+                                                if (n < 0) break
+                                                total += n
+                                                require(total <= 100L * 1024 * 1024) { "APK больше 100 МБ" }
+                                                target.write(buffer, 0, n)
+                                            }
+                                        }
+                                    } ?: error("Не удалось открыть APK")
+                                    @Suppress("DEPRECATION")
+                                    val pkg = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+                                        ?: error("Выбранный файл не является APK")
+                                    require(pkg.packageName != packageName) { "Нельзя устанавливать приложение телефона на часы" }
+                                    val response = WatchApkInstaller.install(manager, apk) { percent ->
+                                        runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
+                                    }
+                                    "Установка завершена: $response"
+                                } catch (e: Exception) {
+                                    android.util.Log.e("TitaniumApkInstall", "Install failed", e)
+                                    "Ошибка установки: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                                }
+                                runOnUiThread { installStatus.text = message; isEnabled = true }
+                            }
+                        }
+                    }
+                }
+                content.addView(installButton)
+                content.addView(gap(8))
+                content.addView(installStatus)
             }
             else -> {
                 card("1. Включить режим разработчика", "На часах: Настройки → О часах → Сведения о ПО. Несколько раз нажми «Версия ПО», пока не появится режим разработчика.")
@@ -93,7 +142,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.13 • ADB TLS", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.14 • APK установка", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
