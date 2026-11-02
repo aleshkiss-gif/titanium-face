@@ -29,7 +29,7 @@ class MainActivity : Activity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); home() }
     private fun home() {
-        val scroll = ScrollView(this).apply { setBackgroundColor(bg); fillViewport = true }
+        val scroll = ScrollView(this).apply { setBackgroundColor(bg); isFillViewport = true }
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(38), dp(22), dp(26)) }
         scroll.addView(root); setContentView(scroll)
         root.addView(text("TITANIUM FACE", 30f, true)); root.addView(space(8))
