@@ -34,6 +34,7 @@ class MainActivity : Activity() {
     private var watchAddress = ""
     private var pairingPort = ""
     private var connectionPort = ""
+    private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
@@ -51,7 +52,12 @@ class MainActivity : Activity() {
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); show(0) }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        watchAddress = prefs.getString("watch_ip", "") ?: ""
+        connectionPort = prefs.getString("adb_port", "") ?: ""
+        show(0)
+    }
     private fun show(tab: Int) {
         currentTab = tab
         val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
@@ -85,7 +91,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.6 • ключи ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.7 • подготовка сопряжения", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -130,6 +136,7 @@ class MainActivity : Activity() {
             setOnClickListener {
                 watchAddress = ip.text.toString().trim()
                 pairingPort = port.text.toString().trim()
+                prefs.edit().putString("watch_ip", watchAddress).apply()
                 val validIp = watchAddress.split(".").let { parts ->
                     parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
                 }
@@ -156,6 +163,7 @@ class MainActivity : Activity() {
                     result.text = "Проверь IP и порт подключения"
                 } else {
                     watchAddress = host; connectionPort = p.toString()
+                    prefs.edit().putString("watch_ip", host).putString("adb_port", connectionPort).apply()
                     result.text = "Проверяем сеть…"
                     thread {
                         val message = try {
