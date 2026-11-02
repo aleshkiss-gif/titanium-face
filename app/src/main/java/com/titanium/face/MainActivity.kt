@@ -374,7 +374,7 @@ class MainActivity : Activity() {
                     val discovered = WatchDiscovery.find(applicationContext, manualHost.ifBlank { null })
                     val host = discovered?.host ?: manualHost
                     val port = discovered?.port?.toString() ?: manualPort
-                    require(host.isNotBlank() && port.toIntOrNull() in 1..65535) {
+                    require(host.isNotBlank() && (port.toIntOrNull()?.let { it in 1..65535 } == true)) {
                         "Часы не найдены. Включи Wi-Fi и беспроводную отладку или введи IP и порт вручную."
                     }
                     watchAddress = host
