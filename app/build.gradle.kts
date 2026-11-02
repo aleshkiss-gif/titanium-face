@@ -1,6 +1,6 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace = "com.titanium.face"; compileSdk = 35
- defaultConfig { applicationId = "com.titanium.face"; minSdk = 28; targetSdk = 35; versionCode = 49; versionName = "0.49" }
+ defaultConfig { applicationId = "com.titanium.face"; minSdk = 28; targetSdk = 35; versionCode = 50; versionName = "0.50" }
  signingConfigs {
    getByName("debug") {
      val signingPath = System.getenv("TITANIUM_SIGNING_FILE")
