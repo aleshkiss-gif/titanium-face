@@ -79,12 +79,12 @@ class MainActivity : Activity() {
                 card("♡  Избранное", "В будущей версии здесь будут сохранённые циферблаты.")
             }
             1 -> {
-                card("＋  Выбрать APK", "Выбрать файл из памяти смартфона.") { pickApk() }
+                card("＋  Выбрать APK или ZIP", "Выбрать APK или ZIP-архив с одним APK.") { pickApk() }
                 if (selectedUri != null) {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
-                    card("✓  Файл выбран", (selectedName ?: "APK") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
-                } else card("Нет выбранного файла", "Выбери APK для просмотра информации.")
-                card("Установка на часы", "Выбери APK циферблата и подключись к часам по ADB TLS. Затем нажми кнопку установки.")
+                    card("✓  Файл выбран", (selectedName ?: "APK / ZIP") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
+                } else card("Нет выбранного файла", "Выбери APK или ZIP для просмотра информации.")
+                card("Установка на часы", "Выбери APK или ZIP с одним APK и подключись к часам по ADB TLS. Архив распакуется автоматически.")
                 val installStatus = label("Установка ещё не запускалась", 14f, color = accent)
                 val installButton = Button(this).apply {
                     text = "Установить выбранный APK на часы"; isAllCaps = false
@@ -100,27 +100,11 @@ class MainActivity : Activity() {
                             installStatus.text = "Подготовка APK…"
                             thread {
                                 val message = try {
-                                    val apk = File(cacheDir, "watchface-to-install.apk")
-                                    contentResolver.openInputStream(uri)?.use { source ->
-                                        apk.outputStream().use { target ->
-                                            val buffer = ByteArray(16384)
-                                            var total = 0L
-                                            while (true) {
-                                                val n = source.read(buffer)
-                                                if (n < 0) break
-                                                total += n
-                                                require(total <= 100L * 1024 * 1024) { "APK больше 100 МБ" }
-                                                target.write(buffer, 0, n)
-                                            }
-                                        }
-                                    } ?: error("Не удалось открыть APK")
-                                    @Suppress("DEPRECATION")
-                                    val pkg = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
-                                        ?: error("Выбранный файл не является APK")
-                                    require(pkg.packageName != packageName) { "Нельзя устанавливать приложение телефона на часы" }
+                                    val apk = ApkArchiveReader.extract(this@MainActivity, uri, selectedName)
                                     val response = WatchApkInstaller.install(manager, apk) { percent ->
                                         runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
                                     }
+                                    apk.delete()
                                     "Установка завершена: $response"
                                 } catch (e: Exception) {
                                     android.util.Log.e("TitaniumApkInstall", "Install failed", e)
@@ -178,7 +162,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.16 • Удаление циферблата", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.17 • APK и ZIP", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -400,7 +384,8 @@ class MainActivity : Activity() {
     }
     private fun pickApk() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE); type = "application/vnd.android.package-archive"
+            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/vnd.android.package-archive", "application/zip", "application/x-zip-compressed", "application/octet-stream"))
         }, 10)
     }
     @Deprecated("Legacy activity result")
@@ -424,23 +409,11 @@ class MainActivity : Activity() {
         show(1)
         thread {
             val description = try {
-                val tmp = File(cacheDir, "selected-watchface.apk")
-                contentResolver.openInputStream(uri)?.use { input ->
-                    tmp.outputStream().use { output ->
-                        val buffer = ByteArray(65536)
-                        var total = 0L
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            total += count
-                            if (total > 100L * 1024 * 1024) throw IllegalArgumentException("APK больше 100 МБ")
-                            output.write(buffer, 0, count)
-                        }
-                    }
-                } ?: throw IllegalArgumentException("Не удалось открыть файл")
+                val tmp = ApkArchiveReader.extract(this@MainActivity, uri, selectedName)
                 @Suppress("DEPRECATION")
                 val info = packageManager.getPackageArchiveInfo(tmp.absolutePath, 0)
                     ?: throw IllegalArgumentException("Файл не распознан как APK")
+                tmp.delete()
                 "Пакет: " + info.packageName + "\nВерсия: " + (info.versionName ?: "не указана")
             } catch (e: Exception) {
                 "Ошибка чтения APK: " + (e.localizedMessage ?: "неизвестная ошибка")
