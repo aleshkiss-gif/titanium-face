@@ -355,6 +355,73 @@ class MainActivity : Activity() {
                                     }
                                     row.addView(label(displayName.toString(), 18f, true))
                                     row.addView(label(pkg, 12f, color = 0xffB8C0D0.toInt()))
+                                    val removeFrame = FrameLayout(this@MainActivity).apply {
+                                        background = glass(18)
+                                        clipToOutline = true
+                                    }
+                                    val removeFill = View(this@MainActivity).apply { setBackgroundColor(0x993A94FF.toInt()) }
+                                    removeFrame.addView(removeFill, FrameLayout.LayoutParams(0, -1, Gravity.START))
+                                    val removeLabel = label("Удалить циферблат", 16f, true).apply {
+                                        gravity = Gravity.CENTER
+                                    }
+                                    removeFrame.addView(removeLabel, FrameLayout.LayoutParams(-1, -1))
+                                    var removing = false
+                                    fun advanceRemoval(percent: Int, title: String) {
+                                        removeLabel.text = title
+                                        removeFrame.post {
+                                            val target = removeFrame.width * percent.coerceIn(0, 100) / 100
+                                            val previous = removeFill.width
+                                            android.animation.ValueAnimator.ofInt(previous, target).apply {
+                                                duration = 320L
+                                                addUpdateListener { animation ->
+                                                    removeFill.layoutParams = (removeFill.layoutParams as FrameLayout.LayoutParams).apply {
+                                                        width = animation.animatedValue as Int
+                                                    }
+                                                }
+                                                start()
+                                            }
+                                        }
+                                    }
+                                    removeFrame.setOnClickListener {
+                                        if (removing || watchOperation.get()) return@setOnClickListener
+                                        android.app.AlertDialog.Builder(this@MainActivity)
+                                            .setTitle("Удалить циферблат?")
+                                            .setMessage("Удалить ${displayName} (${pkg}) с часов?")
+                                            .setNegativeButton("Отмена", null)
+                                            .setPositiveButton("Удалить") { _, _ ->
+                                                if (!watchOperation.compareAndSet(false, true)) return@setPositiveButton
+                                                removing = true
+                                                jelly(removeFrame)
+                                                advanceRemoval(12, "Подключение · 12%")
+                                                inventoryStatus.text = "Удаляем ${displayName}…"
+                                                thread {
+                                                    val result = try {
+                                                        val manager = ensureWatchConnected()
+                                                        runOnUiThread { advanceRemoval(35, "Удаление на часах…") }
+                                                        val output = WatchApkInstaller.uninstallPackage(manager, pkg)
+                                                        managedPrefs.edit().remove(pkg).apply()
+                                                        "Удалено: ${pkg} (${output})"
+                                                    } catch (e: Exception) {
+                                                        "Ошибка удаления: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                                                    }
+                                                    runOnUiThread {
+                                                        if (result.startsWith("Удалено:")) {
+                                                            advanceRemoval(100, "✓ Удалено")
+                                                        } else {
+                                                            advanceRemoval(0, "Повторить удаление")
+                                                        }
+                                                        inventoryStatus.text = result
+                                                        removing = false
+                                                        watchOperation.set(false)
+                                                        if (result.startsWith("Удалено:")) {
+                                                            removeFrame.postDelayed({ if (currentTab == 1) refreshInventory() }, 450)
+                                                        }
+                                                    }
+                                                }
+                                            }.show()
+                                    }
+                                    row.addView(gap(12))
+                                    row.addView(removeFrame, LinearLayout.LayoutParams(-1, dp(60)))
                                     inventoryList.addView(row)
                                     inventoryList.addView(gap(12))
                                 }
