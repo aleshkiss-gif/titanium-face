@@ -34,6 +34,7 @@ class MainActivity : Activity() {
     private var watchAddress = ""
     private var pairingPort = ""
     private var connectionPort = ""
+    private var adbManager: WatchAdbManager? = null
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -177,7 +178,7 @@ class MainActivity : Activity() {
                     code.text.clear()
                     thread {
                         val message = try {
-                            val manager = WatchAdbManager(applicationContext)
+                            val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
                             val paired = manager.pair(host, p, pin)
                             if (paired) "ADB-сопряжение выполнено. Следующий шаг — TLS-подключение."
                             else "Часы отклонили сопряжение. Проверь код и временный порт."
@@ -228,6 +229,40 @@ class MainActivity : Activity() {
         content.addView(probe)
         content.addView(gap(8))
         content.addView(result)
+        content.addView(gap(12))
+        val tlsStatus = label("TLS-подключение ещё не проверялось", 14f, color = accent)
+        val tlsButton = Button(this).apply {
+            text = "Подключиться к часам по ADB (TLS)"; isAllCaps = false
+            setOnClickListener {
+                val host = ip.text.toString().trim()
+                val p = adbPort.text.toString().trim().toIntOrNull()
+                val parts = host.split(".")
+                if (parts.size != 4 || !parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
+                    || p == null || p !in 1..65535) {
+                    tlsStatus.text = "Проверь IP часов и порт подключения ADB (третье поле)"
+                } else {
+                    tlsStatus.text = "Устанавливаем защищённое ADB-соединение…"
+                    thread {
+                        val message = try {
+                            val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
+                            if (manager.isConnected || manager.connect(host, p)) {
+                                prefs.edit().putString("watch_ip", host).putString("adb_port", p.toString()).apply()
+                                "ADB TLS подключено к часам. Можно переходить к установке APK."
+                            } else {
+                                "ADB TLS не подключено. Проверь IP, порт и разрешение сопряжения на часах."
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("TitaniumAdbTls", "Connect failed", e)
+                            "Ошибка TLS: " + (e.javaClass.simpleName + ": " + (e.localizedMessage ?: "нет описания")).take(550)
+                        }
+                        runOnUiThread { tlsStatus.text = message }
+                    }
+                }
+            }
+        }
+        content.addView(tlsButton)
+        content.addView(gap(8))
+        content.addView(tlsStatus)
         content.addView(gap(14))
         card("Статус: не подключено", "ADB-сопряжение тестируется. Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
