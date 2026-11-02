@@ -316,24 +316,22 @@ class MainActivity : Activity() {
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
         frame.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label("WatchFace Manager", 27f, true), LinearLayout.LayoutParams(0, -2, 1f))
-        val settingsButton = TextView(this).apply {
-            text = if (tab == 2) "‹" else "⚙"
-            textSize = 38f
-            setTypeface(null, Typeface.BOLD)
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = if (tab == 2) rounded(0xff2478C9.toInt()) else null
-            contentDescription = if (tab == 2) "Вернуться на главную" else "Настройки подключения"
-            jelly(this)
-            setOnClickListener { show(if (tab == 2) 1 else 2) }
-        }
-        header.addView(settingsButton, LinearLayout.LayoutParams(dp(52), dp(52)))
-        content.addView(header)
+        content.addView(label("WatchFace Manager", 27f, true))
         content.addView(gap(7))
-        content.addView(label(if (tab == 2) "Настройки подключения" else "Циферблаты и установка", 15f, color = accent))
+        content.addView(label(if (tab == 2) "Первое сопряжение с часами" else "Циферблаты и установка", 15f, color = accent))
         content.addView(gap(16))
+        if (tab == 2) {
+            val back = TextView(this).apply {
+                text = "‹  Вернуться на главную"
+                textSize = 16f
+                setTextColor(Color.WHITE)
+                background = rounded(0xff2478C9.toInt())
+                setPadding(dp(16), dp(14), dp(16), dp(14))
+                setOnClickListener { show(1) }
+            }
+            content.addView(back)
+            content.addView(gap(12))
+        }
         if (tab == 1) {
             val logo = TextView(this).apply {
                 text = "WFM"
