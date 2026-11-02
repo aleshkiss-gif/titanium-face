@@ -450,7 +450,7 @@ class MainActivity : Activity() {
                 content.addView(gap(12))
                 content.addView(inventoryList)
                 // Refresh only with an existing live ADB connection; never compete with a new connection.
-                if (adbManager?.isConnected == true && !watchOperation.get()) refreshInventory()
+                // Inventory is refreshed after successful install or uninstall, not on tab entry.
 
             }
             else -> {
@@ -542,9 +542,9 @@ class MainActivity : Activity() {
             button.isEnabled = false
             thread {
                 val result = try {
-                    val discovered = WatchDiscovery.find(applicationContext, manualHost.ifBlank { null })
-                    val host = discovered?.host ?: manualHost
-                    val port = discovered?.port?.toString() ?: manualPort
+                    val discovered = if (manualHost.isBlank() || manualPort.isBlank()) WatchDiscovery.find(applicationContext, manualHost.ifBlank { null }) else null
+                    val host = manualHost.ifBlank { discovered?.host.orEmpty() }
+                    val port = manualPort.ifBlank { discovered?.port?.toString().orEmpty() }
                     require(host.isNotBlank() && (port.toIntOrNull()?.let { it in 1..65535 } == true)) {
                         "Часы не найдены. Включи Wi-Fi и беспроводную отладку или введи IP и порт вручную."
                     }
