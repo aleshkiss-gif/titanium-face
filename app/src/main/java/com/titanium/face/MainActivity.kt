@@ -134,6 +134,41 @@ class MainActivity : Activity() {
                 content.addView(installButton)
                 content.addView(gap(8))
                 content.addView(installStatus)
+                content.addView(gap(24))
+                card("Удаление старого циферблата", "Удаляет только TITANIUM ULTRA 1.0 (пакет com.titanium.ultra) с часов. Другие циферблаты не затрагиваются.")
+                val uninstallStatus = label("Удаление не запускалось", 14f, color = accent)
+                val uninstallButton = Button(this).apply {
+                    text = "Удалить старый TITANIUM ULTRA"; isAllCaps = false
+                    setOnClickListener {
+                        android.app.AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Удалить TITANIUM ULTRA?")
+                            .setMessage("С часов будет удалён пакет com.titanium.ultra. Продолжить?")
+                            .setNegativeButton("Отмена", null)
+                            .setPositiveButton("Удалить") { _, _ ->
+                                val manager = adbManager
+                                if (manager == null || !manager.isConnected) {
+                                    uninstallStatus.text = "Сначала подключись к часам по ADB TLS во вкладке «Часы»"
+                                } else {
+                                    isEnabled = false
+                                    uninstallStatus.text = "Удаляем старый циферблат…"
+                                    thread {
+                                        val message = try {
+                                            val result = WatchApkInstaller.uninstallOldTitanium(manager)
+                                            "TITANIUM ULTRA удалён с часов: $result"
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("TitaniumUninstall", "Uninstall failed", e)
+                                            "Ошибка удаления: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                                        }
+                                        runOnUiThread { uninstallStatus.text = message; isEnabled = true }
+                                    }
+                                }
+                            }
+                            .show()
+                    }
+                }
+                content.addView(uninstallButton)
+                content.addView(gap(8))
+                content.addView(uninstallStatus)
             }
             else -> {
                 card("1. Включить режим разработчика", "На часах: Настройки → О часах → Сведения о ПО. Несколько раз нажми «Версия ПО», пока не появится режим разработчика.")
@@ -143,7 +178,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.15 • Сохранение подключения", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.16 • Удаление циферблата", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
