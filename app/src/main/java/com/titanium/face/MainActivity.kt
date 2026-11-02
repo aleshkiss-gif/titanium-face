@@ -46,6 +46,58 @@ class MainActivity : Activity() {
     private fun rememberInstalled(pkg: String, name: String) {
         if (pkg.matches(Regex("[a-zA-Z_][a-zA-Z0-9_.]*"))) managedPrefs.edit().putString(pkg, name).apply()
     }
+    private fun glass(radius: Int = 24): android.graphics.drawable.Drawable =
+        object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun draw(canvas: android.graphics.Canvas) {
+                val b = bounds
+                val r = dp(radius).toFloat()
+                val rect = android.graphics.RectF(b)
+                paint.shader = android.graphics.LinearGradient(
+                    0f, 0f, b.width().toFloat(), b.height().toFloat(),
+                    intArrayOf(0xff29323B.toInt(), 0xff171E26.toInt(), 0xff11171E.toInt()),
+                    null, android.graphics.Shader.TileMode.CLAMP
+                )
+                paint.style = android.graphics.Paint.Style.FILL
+                canvas.drawRoundRect(rect, r, r, paint)
+                paint.shader = null
+                paint.color = 0x44D8F3FF
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = dp(1).toFloat()
+                canvas.drawRoundRect(android.graphics.RectF(b.left + 1f, b.top + 1f, b.right - 1f, b.bottom - 1f), r, r, paint)
+                paint.style = android.graphics.Paint.Style.FILL
+                paint.color = 0x28D9F1FF
+                val step = dp(12).coerceAtLeast(8)
+                var y = b.top + step / 2
+                while (y < b.bottom - step / 2) {
+                    var x = b.left + step / 2
+                    while (x < b.right - step / 2) {
+                        val dx = x - b.left
+                        val dy = y - b.top
+                        val corner = dp(radius)
+                        if ((dx > corner && dx < b.width() - corner) ||
+                            (dy > corner && dy < b.height() - corner)) {
+                            canvas.drawCircle(x.toFloat(), y.toFloat(), dp(0).toFloat() + 0.7f, paint)
+                        }
+                        x += step
+                    }
+                    y += step
+                }
+            }
+            override fun setAlpha(alpha: Int) {}
+            override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) {}
+            @Deprecated("Deprecated in Java")
+            override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+        }
+
+    private fun jelly(view: View) {
+        view.animate().cancel()
+        view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(95).withEndAction {
+            view.animate().scaleX(1.025f).scaleY(1.025f).setDuration(135).withEndAction {
+                view.animate().scaleX(1f).scaleY(1f).setDuration(165).start()
+            }.start()
+        }.start()
+    }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun dp(n: Float) = (n * resources.displayMetrics.density)
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable(
@@ -75,12 +127,12 @@ class MainActivity : Activity() {
     private fun gap(h: Int) = Space(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(h)) }
     private fun card(title: String, subtitle: String, action: (() -> Unit)? = null) {
         val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); background = rounded(surface)
+            orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); background = glass()
         }
         panel.addView(label(title, 19f, true))
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
-        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { action() } }
+        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { jelly(panel); action() } }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
@@ -97,7 +149,7 @@ class MainActivity : Activity() {
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
         jelly(panel)
-        panel.setOnClickListener { onClick() }
+        panel.setOnClickListener { jelly(panel); onClick() }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
         return heading
@@ -275,7 +327,7 @@ class MainActivity : Activity() {
                     }
                 }
                 jelly(progressFrame)
-                progressFrame.setOnClickListener { if (progressFrame.isEnabled) installButton.performClick() }
+                progressFrame.setOnClickListener { if (progressFrame.isEnabled) { jelly(progressFrame); installButton.performClick() } }
                 content.addView(progressFrame, LinearLayout.LayoutParams(-1, dp(88)))
                 content.addView(gap(8))
                 content.addView(installStatus)
