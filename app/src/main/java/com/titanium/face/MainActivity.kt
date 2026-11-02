@@ -240,18 +240,35 @@ class MainActivity : Activity() {
             ?: throw IllegalStateException("Не найден порт ADB. Проверь беспроводную отладку на часах.")
 
         var lastError: Exception? = null
-        // Reuse the just-paired manager first, then create fresh TLS sessions.
-        repeat(3) { attempt ->
-            try {
-                val candidate = if (attempt == 0 && existing != null) existing else WatchAdbManager(applicationContext)
-                if (candidate.connect(host, targetPort) && candidate.isConnected && WatchApkInstaller.probe(candidate)) {
-                    adbManager = candidate
-                    adbConnected = true
-                    runOnUiThread { updateConnectionStatus() }
-                    return candidate
-                }
-            } catch (e: Exception) { lastError = e }
-            if (attempt < 2) Thread.sleep(450L * (attempt + 1))
+        fun tryPort(attemptPort: Int): WatchAdbManager? {
+            repeat(2) { attempt ->
+                try {
+                    val candidate = WatchAdbManager(applicationContext)
+                    if (candidate.connect(host, attemptPort) && candidate.isConnected &&
+                        WatchApkInstaller.probe(candidate)) return candidate
+                } catch (e: Exception) { lastError = e }
+                if (attempt == 0) Thread.sleep(350L)
+            }
+            return null
+        }
+        var connectedPort = targetPort
+        var connectedManager = tryPort(targetPort)
+        if (connectedManager == null) {
+            // Discover only the same watch, never silently switch to a different device.
+            val discovered = try { WatchDiscovery.find(applicationContext, host, 4000L) }
+                catch (_: Exception) { null }
+            if (discovered?.host == host && discovered.port != targetPort) {
+                connectedManager = tryPort(discovered.port)
+                if (connectedManager != null) connectedPort = discovered.port
+            }
+        }
+        if (connectedManager != null) {
+            adbManager = connectedManager
+            adbConnected = true
+            connectionPort = connectedPort.toString()
+            prefs.edit().putString("adb_port", connectionPort).apply()
+            runOnUiThread { updateConnectionStatus() }
+            return connectedManager
         }
         adbManager = null
         adbConnected = false
