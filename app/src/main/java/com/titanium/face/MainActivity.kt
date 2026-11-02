@@ -57,6 +57,23 @@ class MainActivity : Activity() {
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
+    private fun actionCard(title: String, subtitle: String, onClick: () -> Unit): TextView {
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(20), dp(20), dp(20))
+            background = rounded(surface)
+            isClickable = true
+            isFocusable = true
+        }
+        val heading = label(title, 19f, true)
+        panel.addView(heading)
+        panel.addView(gap(9))
+        panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
+        panel.setOnClickListener { onClick() }
+        content.addView(panel, LinearLayout.LayoutParams(-1, -2))
+        content.addView(gap(14))
+        return heading
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         watchAddress = prefs.getString("watch_ip", "") ?: ""
@@ -162,7 +179,7 @@ class MainActivity : Activity() {
                         }
                     }
                 }
-                content.addView(installButton)
+                actionCard("↓  Установить APK на часы", "Передать выбранный APK или ZIP на Galaxy Watch", { installButton.performClick() })
                 content.addView(gap(8))
                 content.addView(installStatus)
                 content.addView(gap(24))
@@ -194,7 +211,7 @@ class MainActivity : Activity() {
                             .show()
                     }
                 }
-                content.addView(uninstallButton)
+                actionCard("×  Удалить TITANIUM ULTRA", "Удалить установленный циферблат с часов", { uninstallButton.performClick() })
                 content.addView(gap(8))
                 content.addView(uninstallStatus)
             }
@@ -205,7 +222,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.23 • Профиль и сопряжение", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.24 • Единый стиль кнопок", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
