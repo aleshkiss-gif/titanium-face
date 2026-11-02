@@ -11,6 +11,7 @@ import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.View
 import android.widget.*
+import android.text.InputType
 
 class MainActivity : Activity() {
     private val backgroundColor = Color.rgb(11, 13, 19)
@@ -21,6 +22,8 @@ class MainActivity : Activity() {
     private var selectedSize: Long = -1
     private var selectedUri: Uri? = null
     private var currentTab = 0
+    private var watchAddress = ""
+    private var pairingPort = ""
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
@@ -67,12 +70,12 @@ class MainActivity : Activity() {
             else -> {
                 card("1. Включить режим разработчика", "На часах: Настройки → О часах → Сведения о ПО. Несколько раз нажми «Версия ПО», пока не появится режим разработчика.")
                 card("2. Включить беспроводную отладку", "В параметрах разработчика часов включи ADB и беспроводную отладку. Часы и телефон должны быть в одной Wi-Fi сети.")
-                card("3. Сопряжение", "В следующей версии добавим ввод IP, порта и кода сопряжения. Сейчас подключение ещё не выполняется.")
+                pairingForm()
                 card("Безопасность", "После установки циферблата рекомендуется отключать беспроводную отладку.")
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.2 • предварительная", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.3 • подготовка ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -85,6 +88,47 @@ class MainActivity : Activity() {
         }
         frame.addView(nav)
         setContentView(frame)
+    }
+    private fun pairingForm() {
+        card("3. Данные сопряжения", "На часах открой «Беспроводная отладка» → «Сопрячь устройство с помощью кода». IP и порт берутся именно с этого экрана.")
+        val ip = EditText(this).apply {
+            hint = "IP часов, например 192.168.1.20"; setText(watchAddress)
+            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
+            inputType = InputType.TYPE_CLASS_TEXT
+        }
+        val port = EditText(this).apply {
+            hint = "Порт сопряжения"; setText(pairingPort)
+            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        val code = EditText(this).apply {
+            hint = "Шестизначный код"; setSingleLine(true)
+            setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        }
+        content.addView(ip); content.addView(gap(8))
+        content.addView(port); content.addView(gap(8))
+        content.addView(code); content.addView(gap(12))
+        val button = Button(this).apply {
+            text = "Проверить данные"; isAllCaps = false
+            setOnClickListener {
+                watchAddress = ip.text.toString().trim()
+                pairingPort = port.text.toString().trim()
+                val validIp = watchAddress.split(".").let { parts ->
+                    parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
+                }
+                val validPort = pairingPort.toIntOrNull()?.let { it in 1..65535 } == true
+                val validCode = code.text.toString().matches(Regex("[0-9]{6}"))
+                val message = if (validIp && validPort && validCode)
+                    "Формат данных верный. Сопряжение ещё не выполняется: ADB-клиент будет добавлен отдельно."
+                else "Проверь IP, порт и шестизначный код."
+                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+                code.text.clear()
+            }
+        }
+        content.addView(button)
+        content.addView(gap(14))
+        card("Статус: не подключено", "Эта версия проверяет формат данных, но не устанавливает ADB-соединение. Код не сохраняется.")
     }
     private fun pickApk() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
