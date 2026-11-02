@@ -174,7 +174,11 @@ class MainActivity : Activity() {
                             if (paired) "ADB-сопряжение выполнено. Следующий шаг — TLS-подключение."
                             else "Часы отклонили сопряжение. Проверь код и временный порт."
                         } catch (e: Exception) {
-                            "Ошибка ADB-сопряжения: " + (e.localizedMessage ?: e.javaClass.simpleName)
+                            val chain = generateSequence<Throwable>(e) { it.cause }.take(5).joinToString(" → ") {
+                                it.javaClass.simpleName + ": " + (it.localizedMessage ?: "без описания")
+                            }
+                            android.util.Log.e("TitaniumAdbPair", "Pairing failed", e)
+                            "Ошибка ADB-сопряжения: " + chain.take(700) + "\nПроверь: открыт экран кода сопряжения на часах, введён именно временный порт сопряжения, код ещё действителен."
                         }
                         runOnUiThread { pairingStatus.text = message }
                     }
