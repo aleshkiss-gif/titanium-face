@@ -12,6 +12,9 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 import android.text.InputType
+import java.net.Socket
+import java.net.InetSocketAddress
+import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
     private val backgroundColor = Color.rgb(11, 13, 19)
@@ -24,6 +27,7 @@ class MainActivity : Activity() {
     private var currentTab = 0
     private var watchAddress = ""
     private var pairingPort = ""
+    private var connectionPort = ""
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
@@ -75,7 +79,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.3 • подготовка ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.4 • диагностика сети", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -90,7 +94,7 @@ class MainActivity : Activity() {
         setContentView(frame)
     }
     private fun pairingForm() {
-        card("3. Данные сопряжения", "На часах открой «Беспроводная отладка» → «Сопрячь устройство с помощью кода». IP и порт берутся именно с этого экрана.")
+        card("3. Данные сопряжения", "На часах открой «Беспроводная отладка» → «Сопрячь устройство с помощью кода». Порт сопряжения берётся с этого экрана. Отдельный порт подключения находится на основном экране беспроводной отладки.")
         val ip = EditText(this).apply {
             hint = "IP часов, например 192.168.1.20"; setText(watchAddress)
             setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
@@ -108,6 +112,12 @@ class MainActivity : Activity() {
         }
         content.addView(ip); content.addView(gap(8))
         content.addView(port); content.addView(gap(8))
+        val adbPort = EditText(this).apply {
+            hint = "Порт подключения ADB (отдельный)"; setText(connectionPort)
+            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
+            inputType = InputType.TYPE_CLASS_NUMBER
+        }
+        content.addView(adbPort); content.addView(gap(8))
         content.addView(code); content.addView(gap(12))
         val button = Button(this).apply {
             text = "Проверить данные"; isAllCaps = false
@@ -127,8 +137,39 @@ class MainActivity : Activity() {
             }
         }
         content.addView(button)
+        content.addView(gap(12))
+        val result = label("Сеть ещё не проверялась", 14f, color = accent)
+        val probe = Button(this).apply {
+            text = "Проверить порт подключения"; isAllCaps = false
+            setOnClickListener {
+                val host = ip.text.toString().trim()
+                val p = adbPort.text.toString().toIntOrNull()
+                val parts = host.split(".")
+                val validIp = parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
+                if (!validIp || p == null || p !in 1..65535) {
+                    result.text = "Проверь IP и порт подключения"
+                } else {
+                    watchAddress = host; connectionPort = p.toString()
+                    result.text = "Проверяем сеть…"
+                    thread {
+                        val message = try {
+                            Socket().use { socket ->
+                                socket.connect(InetSocketAddress(host, p), 3000)
+                                "TCP-порт доступен. ADB-сопряжение ещё не выполнено."
+                            }
+                        } catch (e: Exception) {
+                            "Порт недоступен: " + (e.localizedMessage ?: "ошибка сети")
+                        }
+                        runOnUiThread { result.text = message }
+                    }
+                }
+            }
+        }
+        content.addView(probe)
+        content.addView(gap(8))
+        content.addView(result)
         content.addView(gap(14))
-        card("Статус: не подключено", "Эта версия проверяет формат данных, но не устанавливает ADB-соединение. Код не сохраняется.")
+        card("Статус: не подключено", "Проверка TCP-порта не означает ADB-сопряжение. Защищённый ADB-клиент ещё не реализован. Код не сохраняется.")
     }
     private fun pickApk() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
