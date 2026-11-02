@@ -131,6 +131,8 @@ class MainActivity : Activity() {
         }
         content.addView(adbPort); content.addView(gap(8))
         content.addView(code); content.addView(gap(12))
+        content.addView(label("Код и порт сопряжения после перезапуска вводятся заново. IP и порт подключения ADB сохраняются.", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(gap(12))
         val button = Button(this).apply {
             text = "Проверить данные"; isAllCaps = false
             setOnClickListener {
