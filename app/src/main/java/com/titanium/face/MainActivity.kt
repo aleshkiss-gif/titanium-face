@@ -320,10 +320,11 @@ class MainActivity : Activity() {
         header.addView(label("WatchFace Manager", 27f, true), LinearLayout.LayoutParams(0, -2, 1f))
         val settingsButton = TextView(this).apply {
             text = if (tab == 2) "‹" else "⚙"
-            textSize = 30f
+            textSize = 38f
+            setTypeface(null, Typeface.BOLD)
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = rounded(0xff2478C9.toInt())
+            background = if (tab == 2) rounded(0xff2478C9.toInt()) else null
             contentDescription = if (tab == 2) "Вернуться на главную" else "Настройки подключения"
             jelly(this)
             setOnClickListener { show(if (tab == 2) 1 else 2) }
