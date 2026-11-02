@@ -1,12 +1,15 @@
 plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android { namespace = "com.titanium.face"; compileSdk = 35
- defaultConfig { applicationId = "com.titanium.face"; minSdk = 28; targetSdk = 35; versionCode = 47; versionName = "0.47" }
+ defaultConfig { applicationId = "com.titanium.face"; minSdk = 28; targetSdk = 35; versionCode = 48; versionName = "0.48" }
  signingConfigs {
    getByName("debug") {
-     storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-     storePassword = "android"
-     keyAlias = "androiddebugkey"
-     keyPassword = "android"
+     val signingPath = System.getenv("TITANIUM_SIGNING_FILE")
+     if (!signingPath.isNullOrBlank()) {
+       storeFile = file(signingPath)
+       storePassword = System.getenv("TITANIUM_SIGNING_STORE_PASSWORD")
+       keyAlias = System.getenv("TITANIUM_SIGNING_KEY_ALIAS")
+       keyPassword = System.getenv("TITANIUM_SIGNING_KEY_PASSWORD")
+     }
    }
  }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
