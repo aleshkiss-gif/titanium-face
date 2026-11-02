@@ -38,6 +38,7 @@ class MainActivity : Activity() {
     private var adbConnected = false
     private var connectionStatusView: TextView? = null
     private var connectionStatusNote: TextView? = null
+    private var connectionStatusPanel: LinearLayout? = null
     private var pairingCodeDraft = ""
     private var inventoryRefresh: (() -> Unit)? = null
     private val watchOperation = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -281,11 +282,24 @@ class MainActivity : Activity() {
 
     private fun updateConnectionStatus() {
         val connected = adbConnected && adbManager?.isConnected == true
-        connectionStatusView?.text = if (connected) "● Часы подключены" else "◌ Часы в режиме ожидания"
-        connectionStatusView?.setTextColor(if (connected) 0xff5BFF9B.toInt() else 0xff87BFFF.toInt())
-        connectionStatusNote?.text = if (connected)
-            "Galaxy Watch Ultra · соединение активно"
-        else "Автоматически подключимся после пробуждения"
+        val configured = prefs.getString("watch_ip", "").orEmpty().isNotBlank()
+        val panelColor = when {
+            connected -> 0xff237849.toInt()
+            configured -> 0xff225A96.toInt()
+            else -> 0xff424A54.toInt()
+        }
+        connectionStatusPanel?.background = rounded(panelColor)
+        connectionStatusView?.text = when {
+            connected -> "● Часы подключены"
+            configured -> "◌ Часы в режиме ожидания"
+            else -> "○ Часы отключены"
+        }
+        connectionStatusView?.setTextColor(Color.WHITE)
+        connectionStatusNote?.text = when {
+            connected -> "Galaxy Watch Ultra · соединение активно"
+            configured -> "Автоматически подключимся после пробуждения"
+            else -> "Открой настройки и подключи часы"
+        }
     }
 
     private fun show(tab: Int) {
@@ -293,6 +307,7 @@ class MainActivity : Activity() {
         inventoryRefresh = null
         connectionStatusView = null
         connectionStatusNote = null
+        connectionStatusPanel = null
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = dialBackdrop()
@@ -301,9 +316,22 @@ class MainActivity : Activity() {
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
         frame.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        content.addView(label("WatchFace Manager", 29f, true))
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        header.addView(label("WatchFace Manager", 27f, true), LinearLayout.LayoutParams(0, -2, 1f))
+        val settingsButton = TextView(this).apply {
+            text = if (tab == 2) "‹" else "⚙"
+            textSize = 30f
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(0xff2478C9.toInt())
+            contentDescription = if (tab == 2) "Вернуться на главную" else "Настройки подключения"
+            jelly(this)
+            setOnClickListener { show(if (tab == 2) 1 else 2) }
+        }
+        header.addView(settingsButton, LinearLayout.LayoutParams(dp(52), dp(52)))
+        content.addView(header)
         content.addView(gap(7))
-        content.addView(label(when(tab) { 0 -> "Коллекция циферблатов"; 1 -> "Файлы и установка"; else -> "Подключение Galaxy Watch" }, 15f, color = accent))
+        content.addView(label(if (tab == 2) "Настройки подключения" else "Циферблаты и установка", 15f, color = accent))
         content.addView(gap(16))
         if (tab == 1) {
             val panel = LinearLayout(this).apply {
@@ -318,6 +346,7 @@ class MainActivity : Activity() {
             panel.addView(gap(5))
             connectionStatusNote = label("Автоматически подключимся после пробуждения", 12f, color = 0xffA5B9AE.toInt())
             panel.addView(connectionStatusNote)
+            connectionStatusPanel = panel
             content.addView(panel)
             updateConnectionStatus()
             content.addView(gap(20))
@@ -539,19 +568,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.36 • Emerald Glass", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
-        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
-        listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
-            val button = TextView(this).apply {
-                text = name; gravity = Gravity.CENTER; textSize = 14f
-                setTextColor(if (index == tab) accent else 0xffB5BDCB.toInt())
-                setTypeface(null, if (index == tab) Typeface.BOLD else Typeface.NORMAL)
-                jelly(this)
-                setOnClickListener { show(index) }
-            }
-            nav.addView(button, LinearLayout.LayoutParams(0, dp(46), 1f))
-        }
-        frame.addView(nav)
+        content.addView(label("Версия 0.42 • Emerald Glass", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         setContentView(frame)
     }
     private fun pairingForm() {
