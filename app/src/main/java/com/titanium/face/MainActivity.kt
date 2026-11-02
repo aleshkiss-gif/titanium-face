@@ -36,6 +36,7 @@ class MainActivity : Activity() {
     private var connectionPort = ""
     private var adbManager: WatchAdbManager? = null
     private var adbConnected = false
+    private var pairingCodeDraft = ""
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -142,7 +143,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.14 • APK установка", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.15 • Сохранение подключения", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -173,6 +174,18 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
         }
+        // Preserve unsaved input when switching tabs. Pairing code is kept only in RAM.
+        fun track(field: EditText, onText: (String) -> Unit) {
+            field.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { onText(s?.toString() ?: "") }
+                override fun afterTextChanged(s: android.text.Editable?) {}
+            })
+        }
+        track(ip) { watchAddress = it }
+        track(port) { pairingPort = it }
+        track(code) { pairingCodeDraft = it }
+        code.setText(pairingCodeDraft)
         content.addView(label("1. IP-АДРЕС ЧАСОВ", 17f, color = accent))
         content.addView(label("Основной экран «Беспроводная отладка». Пример: 192.168.1.75", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(ip); content.addView(gap(18))
@@ -184,6 +197,7 @@ class MainActivity : Activity() {
             setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
             inputType = InputType.TYPE_CLASS_NUMBER
         }
+        track(adbPort) { connectionPort = it }
         content.addView(label("3. ПОРТ ПОДКЛЮЧЕНИЯ ADB", 17f, color = accent))
         content.addView(label("Основной экран «Беспроводная отладка»: число ПОСЛЕ двоеточия в IP:порт. Не путай с портом сопряжения.", 13f, color = 0xffB8C0D0.toInt()))
         content.addView(adbPort); content.addView(gap(18))
@@ -280,7 +294,7 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(result)
         content.addView(gap(12))
-        val tlsStatus = label("TLS-подключение ещё не проверялось", 14f, color = accent)
+        val tlsStatus = label(if (adbManager?.isConnected == true) "ADB TLS подключено к часам" else "TLS-подключение ещё не проверялось", 14f, color = accent)
         val tlsButton = Button(this).apply {
             text = "Подключиться к часам по ADB (TLS)"; isAllCaps = false
             setOnClickListener {
@@ -315,7 +329,7 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(tlsStatus)
         content.addView(gap(14))
-        card(if (adbConnected) "Статус: ADB подключено" else "Статус: не подключено", "Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
+        card(if (adbManager?.isConnected == true) "Статус: ADB подключено" else "Статус: не подключено", "Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
         val keyButton = Button(this).apply {
             text = "Создать защищённый ключ устройства"; isAllCaps = false
