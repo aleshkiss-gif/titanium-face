@@ -432,7 +432,6 @@ class MainActivity : Activity() {
                     }
                 }
                 inventoryRefresh = { refreshInventory() }
-                actionCard("↻  Обновить список", "Проверить циферблаты на часах", { refreshInventory() })
                 content.addView(inventoryStatus)
                 content.addView(gap(12))
                 content.addView(inventoryList)
