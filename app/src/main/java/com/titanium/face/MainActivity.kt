@@ -145,7 +145,7 @@ class MainActivity : Activity() {
                 canvas.drawCircle(cx, cy, radius * 0.44f, paint)
                 paint.style = android.graphics.Paint.Style.FILL
                 paint.shader = android.graphics.RadialGradient(cx, cy, radius * 0.88f,
-                    intArrayOf(0x00202020, 0x22030808, 0x88030706),
+                    intArrayOf(0x00202020, 0x22030808, 0x88030706.toInt()),
                     floatArrayOf(0f, 0.60f, 1f), android.graphics.Shader.TileMode.CLAMP)
                 canvas.drawCircle(cx, cy, radius * 0.88f, paint)
                 paint.shader = null
