@@ -206,16 +206,15 @@ class MainActivity : Activity() {
             connectionPort = port.toString()
             prefs.edit().putString("adb_port", connectionPort).apply()
         }
-        require(port != null && port in 1..65535) {
-            "Не найден порт ADB. Проверь беспроводную отладку на часах."
-        }
+        val targetPort = port?.takeIf { it in 1..65535 }
+            ?: throw IllegalStateException("Не найден порт ADB. Проверь беспроводную отладку на часах.")
 
         var lastError: Exception? = null
         // Reuse the just-paired manager first, then create fresh TLS sessions.
         repeat(3) { attempt ->
             try {
                 val candidate = if (attempt == 0 && existing != null) existing else WatchAdbManager(applicationContext)
-                if (candidate.connect(host, port) && candidate.isConnected) {
+                if (candidate.connect(host, targetPort) && candidate.isConnected) {
                     adbManager = candidate
                     adbConnected = true
                     runOnUiThread { updateConnectionStatus() }
@@ -228,7 +227,7 @@ class MainActivity : Activity() {
         adbConnected = false
         runOnUiThread { updateConnectionStatus() }
         throw IllegalStateException(
-            "ADB TLS не подключилось к $host:$port. Проверь порт беспроводной отладки; если сопряжение потеряно, выполни его заново.",
+            "ADB TLS не подключилось к $host:$targetPort. Проверь порт беспроводной отладки; если сопряжение потеряно, выполни его заново.",
             lastError
         )
     }
