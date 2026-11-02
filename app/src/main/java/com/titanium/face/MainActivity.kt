@@ -90,14 +90,6 @@ class MainActivity : Activity() {
             override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
         }
 
-    private fun jelly(view: View) {
-        view.animate().cancel()
-        view.animate().scaleX(0.96f).scaleY(0.96f).setDuration(95).withEndAction {
-            view.animate().scaleX(1.025f).scaleY(1.025f).setDuration(135).withEndAction {
-                view.animate().scaleX(1f).scaleY(1f).setDuration(165).start()
-            }.start()
-        }.start()
-    }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun dp(n: Float) = (n * resources.displayMetrics.density)
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable(
