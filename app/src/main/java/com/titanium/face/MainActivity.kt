@@ -38,7 +38,7 @@ class MainActivity : Activity() {
     private var adbConnected = false
     private var connectionStatusView: TextView? = null
     private var connectionStatusNote: TextView? = null
-    private var connectionStatusPanel: LinearLayout? = null
+    private var watchStatusButton: WatchStatusButton? = null
     private var pairingCodeDraft = ""
     private var inventoryRefresh: (() -> Unit)? = null
     private val watchOperation = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -323,22 +323,10 @@ class MainActivity : Activity() {
     private fun updateConnectionStatus() {
         val connected = adbConnected && adbManager?.isConnected == true
         val configured = prefs.getString("watch_ip", "").orEmpty().isNotBlank()
-        val panelColor = when {
-            connected -> 0xff237849.toInt()
-            configured -> 0xff225A96.toInt()
-            else -> 0xff424A54.toInt()
-        }
-        connectionStatusPanel?.background = rounded(panelColor)
-        connectionStatusView?.text = when {
-            connected -> "● Часы подключены"
-            configured -> "◌ Часы в режиме ожидания"
-            else -> "○ Часы отключены"
-        }
-        connectionStatusView?.setTextColor(Color.WHITE)
-        connectionStatusNote?.text = when {
-            connected -> "Galaxy Watch Ultra · соединение активно"
-            configured -> "Автоматически подключимся после пробуждения"
-            else -> "Открой настройки и подключи часы"
+        watchStatusButton?.status = when {
+            connected -> 2
+            configured -> 1
+            else -> 0
         }
     }
 
@@ -347,7 +335,7 @@ class MainActivity : Activity() {
         inventoryRefresh = null
         connectionStatusView = null
         connectionStatusNote = null
-        connectionStatusPanel = null
+        watchStatusButton = null
         val frame = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = dialBackdrop()
@@ -374,55 +362,22 @@ class MainActivity : Activity() {
             content.addView(gap(12))
         }
         if (tab == 1) {
-            val logo = TextView(this).apply {
-                text = "WFM"
-                gravity = Gravity.CENTER
-                textSize = 44f
-                setTypeface(null, Typeface.BOLD)
-                setTextColor(Color.WHITE)
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(0xff071526.toInt())
-                    setStroke(dp(4), 0xff39AEFF.toInt())
-                }
-                elevation = dp(12).toFloat()
-                contentDescription = "WFM · подключить часы"
-                isClickable = true
-                isFocusable = true
+            val logo = WatchStatusButton(this).apply {
                 setOnClickListener {
                     val host = prefs.getString("watch_ip", "").orEmpty()
                     if (host.isBlank()) {
                         show(2)
                     } else if (adbConnected && adbManager?.isConnected == true) {
-                        android.widget.Toast.makeText(this@MainActivity, "Часы уже подключены", android.widget.Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Часы уже подключены", Toast.LENGTH_SHORT).show()
                     } else {
                         autoReconnect()
                     }
                 }
             }
-            val logoHolder = FrameLayout(this)
-            logoHolder.addView(logo, FrameLayout.LayoutParams(dp(190), dp(190), Gravity.CENTER))
-            content.addView(logoHolder, LinearLayout.LayoutParams(-1, dp(230)))
-            content.addView(gap(12))
-            val panel = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(16), dp(14), dp(16), dp(14))
-                background = glass(20)
-                isClickable = true
-                isFocusable = true
-                setOnClickListener { logo.performClick() }
-            }
-            panel.addView(label("СОЕДИНЕНИЕ С ЧАСАМИ", 12f, true, color = Color.WHITE))
-            panel.addView(gap(7))
-            connectionStatusView = label("◌ Часы в режиме ожидания", 16f, true)
-            panel.addView(connectionStatusView)
-            panel.addView(gap(5))
-            connectionStatusNote = label("Нажми WFM для подключения", 12f, color = Color.WHITE)
-            panel.addView(connectionStatusNote)
-            connectionStatusPanel = panel
-            content.addView(panel)
+            watchStatusButton = logo
+            content.addView(logo, LinearLayout.LayoutParams(-1, dp(340)))
             updateConnectionStatus()
-            content.addView(gap(20))
+            content.addView(gap(12))
         } else content.addView(gap(14))
         when(tab) {
             1 -> {
