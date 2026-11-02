@@ -202,7 +202,7 @@ class MainActivity : Activity() {
                                             val connectedManager = ensureWatchConnected()
                                             runOnUiThread { setProgress(20, "Подключено · 20%") }
                                             response = WatchApkInstaller.install(connectedManager, apk) { percent ->
-                                                runOnUiThread { val value = 20 + percent * 65 / 100; setProgress(value, "Передача · $value%"); installStatus.text = "Передача на часы: $percent%" }
+                                                runOnUiThread { val value = if (percent > 100) 90 else 20 + percent * 65 / 100; setProgress(value, if (percent > 100) "Установка на часах · 90%" else "Передача · $value%"); installStatus.text = if (percent > 100) "Устанавливаем APK на часах…" else "Передача на часы: $percent%" }
                                             }
                                             runOnUiThread { setProgress(95, "Проверка установки · 95%") }
                                             break
