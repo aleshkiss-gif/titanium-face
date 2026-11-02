@@ -40,6 +40,10 @@ class MainActivity : Activity() {
     private var connectionStatusNote: TextView? = null
     private var pairingCodeDraft = ""
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
+    private val managedPrefs by lazy { getSharedPreferences("managed_watch_packages", MODE_PRIVATE) }
+    private fun rememberInstalled(pkg: String, name: String) {
+        if (pkg.matches(Regex("[a-zA-Z_][a-zA-Z0-9_.]*"))) managedPrefs.edit().putString(pkg, name).apply()
+    }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
     private fun label(s: String, size: Float, bold: Boolean = false, color: Int = Color.WHITE) = TextView(this).apply {
@@ -168,6 +172,9 @@ class MainActivity : Activity() {
                                         }
                                     }
                                     if (response == null) throw lastError ?: IllegalStateException("ADB установка не удалась")
+                                    @Suppress("DEPRECATION")
+                                    val installedInfo = packageManager.getPackageArchiveInfo(apk.absolutePath, 0)
+                                    if (installedInfo != null) rememberInstalled(installedInfo.packageName, installedInfo.applicationInfo?.loadLabel(packageManager)?.toString() ?: installedInfo.packageName)
                                     apk.delete()
                                     "Установка завершена: $response"
                                 } catch (e: Exception) {
@@ -183,37 +190,63 @@ class MainActivity : Activity() {
                 content.addView(gap(8))
                 content.addView(installStatus)
                 content.addView(gap(24))
-                card("Удаление старого циферблата", "Удаляет только TITANIUM ULTRA 1.0 (пакет com.titanium.ultra) с часов. Другие циферблаты не затрагиваются.")
-                val uninstallStatus = label("Удаление не запускалось", 14f, color = accent)
-                val uninstallButton = Button(this).apply {
-                    text = "Удалить старый TITANIUM ULTRA"; isAllCaps = false
-                    setOnClickListener {
-                        android.app.AlertDialog.Builder(this@MainActivity)
-                            .setTitle("Удалить TITANIUM ULTRA?")
-                            .setMessage("С часов будет удалён пакет com.titanium.ultra. Продолжить?")
-                            .setNegativeButton("Отмена", null)
-                            .setPositiveButton("Удалить") { _, _ ->
-                                run {
-                                    isEnabled = false
-                                    uninstallStatus.text = "Удаляем старый циферблат…"
-                                    thread {
-                                        val message = try {
-                                            val result = WatchApkInstaller.uninstallOldTitanium(ensureWatchConnected())
-                                            "TITANIUM ULTRA удалён с часов: $result"
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("TitaniumUninstall", "Uninstall failed", e)
-                                            "Ошибка удаления: " + (e.localizedMessage ?: e.javaClass.simpleName)
-                                        }
-                                        runOnUiThread { uninstallStatus.text = message; isEnabled = true }
+                content.addView(label("Установленные через TITANIUM FACE", 21f, true))
+                content.addView(gap(8))
+                val inventoryStatus = label("Нажми «Обновить список», чтобы проверить часы.", 14f, color = accent)
+                val inventoryList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                fun refreshInventory() {
+                    inventoryStatus.text = "Подключаемся и проверяем установленные пакеты…"
+                    inventoryList.removeAllViews()
+                    thread {
+                        try {
+                            val installed = WatchApkInstaller.installedPackages(ensureWatchConnected())
+                            val managed = managedPrefs.all.filter { it.key in installed && it.value is String }
+                            runOnUiThread {
+                                inventoryStatus.text = if (managed.isEmpty()) "Нет подтверждённых установок через TITANIUM FACE на этих часах." else "Найдено: ${managed.size}"
+                                for ((pkg, displayName) in managed) {
+                                    val row = LinearLayout(this@MainActivity).apply {
+                                        orientation = LinearLayout.VERTICAL
+                                        setPadding(dp(18), dp(16), dp(18), dp(16))
+                                        background = rounded(surface)
                                     }
+                                    row.addView(label(displayName.toString(), 18f, true))
+                                    row.addView(label(pkg, 12f, color = 0xffB8C0D0.toInt()))
+                                    val delete = Button(this@MainActivity).apply {
+                                        text = "Удалить с часов"; isAllCaps = false
+                                        setOnClickListener {
+                                            android.app.AlertDialog.Builder(this@MainActivity)
+                                                .setTitle("Удалить ${displayName}?")
+                                                .setMessage("Удалить пакет ${pkg} с часов? Другие приложения не затрагиваются.")
+                                                .setNegativeButton("Отмена", null)
+                                                .setPositiveButton("Удалить") { _, _ ->
+                                                    isEnabled = false
+                                                    inventoryStatus.text = "Удаляем ${displayName}…"
+                                                    thread {
+                                                        val result = try {
+                                                            WatchApkInstaller.uninstallPackage(ensureWatchConnected(), pkg)
+                                                            managedPrefs.edit().remove(pkg).apply()
+                                                            "Удалено: $pkg"
+                                                        } catch (e: Exception) { "Ошибка удаления: " + (e.localizedMessage ?: "неизвестно") }
+                                                        runOnUiThread { inventoryStatus.text = result; isEnabled = true; if (result.startsWith("Удалено:")) refreshInventory() }
+                                                    }
+                                                }.show()
+                                        }
+                                    }
+                                    row.addView(delete)
+                                    inventoryList.addView(row)
+                                    inventoryList.addView(gap(12))
                                 }
                             }
-                            .show()
+                        } catch (e: Exception) {
+                            runOnUiThread { inventoryStatus.text = "Не удалось проверить часы: " + (e.localizedMessage ?: "нет соединения") }
+                        }
                     }
                 }
-                actionCard("×  Удалить TITANIUM ULTRA", "Удалить установленный циферблат с часов", { uninstallButton.performClick() })
-                content.addView(gap(8))
-                content.addView(uninstallStatus)
+                actionCard("↻  Обновить список циферблатов", "Показать только пакеты, установленные через TITANIUM FACE и найденные на часах", { refreshInventory() })
+                content.addView(inventoryStatus)
+                content.addView(gap(12))
+                content.addView(inventoryList)
+
             }
             else -> {
                 card("Профиль: Galaxy Watch Ultra", "IP, порты и защищённый ключ сохраняются. После первого сопряжения повторно вводить шестизначный код обычно не нужно. Если порт часов изменился, приложение попробует найти новый автоматически.")
@@ -222,7 +255,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.24 • Единый стиль кнопок", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.25 • Мои установки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
