@@ -306,7 +306,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.31 • Подключение и прогресс", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.32 • Автопоиск часов", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
@@ -332,13 +332,14 @@ class MainActivity : Activity() {
                 setHintTextColor(0xff9FA9B9.toInt())
                 inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
             }
-        val ip = field("IP часов", watchAddress)
-        val adbPort = field("Порт ADB (из беспроводной отладки)", connectionPort, true)
+        content.addView(label("Поиск выполняется по Wi-Fi. На часах должна быть включена беспроводная отладка.", 14f, color = 0xffB8C0D0.toInt()))
+        val ip = field("IP часов (резервный ввод)", watchAddress)
+        val adbPort = field("Порт ADB (резервный ввод)", connectionPort, true)
         content.addView(ip)
         content.addView(adbPort)
-        content.addView(label("Для нового сопряжения заполни два поля ниже. При обычном подключении оставь их пустыми.", 13f, color = 0xffB8C0D0.toInt()))
-        val pairPort = field("Порт сопряжения (необязательно)", pairingPort, true)
-        val pin = field("Код сопряжения (необязательно)", "", true)
+        content.addView(label("Только для первого сопряжения: открой на часах «Сопряжение с кодом».", 13f, color = 0xffB8C0D0.toInt()))
+        val pairPort = field("Порт сопряжения (если нужен)", pairingPort, true)
+        val pin = field("Шестизначный код (если нужен)", "", true)
         pin.filters = arrayOf(android.text.InputFilter.LengthFilter(6))
         content.addView(pairPort)
         content.addView(pin)
@@ -355,26 +356,32 @@ class MainActivity : Activity() {
         }
         fun updateButton() {
             val connected = adbManager?.isConnected == true
-            button.text = if (connected) "✓ Подключено к часам" else "Подключиться к часам"
+            button.text = if (connected) "✓ Подключено к часам" else "Найти и подключить часы"
             button.background = rounded(if (connected) 0xff278B57.toInt() else 0xff2478C9.toInt())
             status.text = if (connected) "● ADB подключено" else "○ ADB не подключено"
         }
         updateButton()
         button.setOnClickListener {
             if (!watchOperation.compareAndSet(false, true)) return@setOnClickListener
-            val host = ip.text.toString().trim()
-            val port = adbPort.text.toString().trim()
+            val manualHost = ip.text.toString().trim()
+            val manualPort = adbPort.text.toString().trim()
             val temporaryPort = pairPort.text.toString().trim()
             val code = pin.text.toString().trim()
-            watchAddress = host
-            connectionPort = port
-            pairingPort = temporaryPort
-            prefs.edit().putString("watch_ip", host).putString("adb_port", port)
-                .putString("pairing_port", temporaryPort).apply()
-            status.text = "Подключаемся…"
+            status.text = "Ищем часы в локальной сети…"
             button.isEnabled = false
             thread {
                 val result = try {
+                    val discovered = WatchDiscovery.find(applicationContext, manualHost.ifBlank { null })
+                    val host = discovered?.host ?: manualHost
+                    val port = discovered?.port?.toString() ?: manualPort
+                    require(host.isNotBlank() && port.toIntOrNull() in 1..65535) {
+                        "Часы не найдены. Включи Wi-Fi и беспроводную отладку или введи IP и порт вручную."
+                    }
+                    watchAddress = host
+                    connectionPort = port
+                    pairingPort = temporaryPort
+                    prefs.edit().putString("watch_ip", host).putString("adb_port", port)
+                        .putString("pairing_port", temporaryPort).apply()
                     if (code.isNotEmpty()) {
                         require(code.matches(Regex("[0-9]{6}"))) { "Код должен содержать 6 цифр" }
                         val pp = temporaryPort.toIntOrNull()
@@ -383,10 +390,12 @@ class MainActivity : Activity() {
                         require(manager.pair(host, pp, code)) { "Часы отклонили сопряжение" }
                     }
                     ensureWatchConnected()
-                    "Соединение установлено"
+                    "Соединение установлено: $host:$port"
                 } catch (e: Exception) { e.localizedMessage ?: "Ошибка подключения" }
                 runOnUiThread {
                     pin.text.clear()
+                    ip.setText(watchAddress)
+                    adbPort.setText(connectionPort)
                     status.text = result
                     button.isEnabled = true
                     watchOperation.set(false)
