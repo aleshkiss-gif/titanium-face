@@ -335,17 +335,50 @@ class MainActivity : Activity() {
         content.addView(label(if (tab == 2) "Настройки подключения" else "Циферблаты и установка", 15f, color = accent))
         content.addView(gap(16))
         if (tab == 1) {
+            val logo = TextView(this).apply {
+                text = "WFM"
+                gravity = Gravity.CENTER
+                textSize = 44f
+                setTypeface(null, Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(0xff071526.toInt())
+                    setStroke(dp(4), 0xff39AEFF.toInt())
+                }
+                elevation = dp(12).toFloat()
+                contentDescription = "WFM · подключить часы"
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    val host = prefs.getString("watch_ip", "").orEmpty()
+                    if (host.isBlank()) {
+                        show(2)
+                    } else if (adbConnected && adbManager?.isConnected == true) {
+                        android.widget.Toast.makeText(this@MainActivity, "Часы уже подключены", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        autoReconnect()
+                    }
+                }
+            }
+            val logoHolder = FrameLayout(this)
+            logoHolder.addView(logo, FrameLayout.LayoutParams(dp(190), dp(190), Gravity.CENTER))
+            content.addView(logoHolder, LinearLayout.LayoutParams(-1, dp(230)))
+            content.addView(gap(12))
             val panel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(14), dp(16), dp(14))
                 background = glass(20)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { logo.performClick() }
             }
-            panel.addView(label("СОЕДИНЕНИЕ С ЧАСАМИ", 12f, true, color = accent))
+            panel.addView(label("СОЕДИНЕНИЕ С ЧАСАМИ", 12f, true, color = Color.WHITE))
             panel.addView(gap(7))
             connectionStatusView = label("◌ Часы в режиме ожидания", 16f, true)
             panel.addView(connectionStatusView)
             panel.addView(gap(5))
-            connectionStatusNote = label("Автоматически подключимся после пробуждения", 12f, color = 0xffA5B9AE.toInt())
+            connectionStatusNote = label("Нажми WFM для подключения", 12f, color = Color.WHITE)
             panel.addView(connectionStatusNote)
             connectionStatusPanel = panel
             content.addView(panel)
