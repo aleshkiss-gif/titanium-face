@@ -38,35 +38,6 @@ class MainActivity : Activity() {
     private var adbConnected = false
     private var connectionStatusView: TextView? = null
     private var connectionStatusNote: TextView? = null
-    private val statusHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val statusPoll = object : Runnable {
-        override fun run() {
-            if (currentTab == 1 || currentTab == 2) {
-                if (watchOperation.compareAndSet(false, true)) {
-                    thread {
-                        val alive = try {
-                            val manager = adbManager
-                            manager != null && WatchApkInstaller.probe(manager)
-                        } catch (_: Exception) { false }
-                        runOnUiThread {
-                            watchOperation.set(false)
-                            if (alive) {
-                                adbConnected = true
-                                connectionMessage = "● Часы подключены"
-                                updateConnectionStatus()
-                            } else {
-                                adbConnected = false
-                                connectionMessage = "◌ Часы в режиме ожидания · ждём пробуждения"
-                                updateConnectionStatus()
-                                autoReconnect()
-                            }
-                        }
-                    }
-                }
-            }
-            statusHandler.postDelayed(this, 15000L)
-        }
-    }
     private var pairingCodeDraft = ""
     private var inventoryRefresh: (() -> Unit)? = null
     private val watchOperation = java.util.concurrent.atomic.AtomicBoolean(false)
@@ -191,7 +162,7 @@ class MainActivity : Activity() {
         panel.addView(label(title, 19f, true))
         panel.addView(gap(9))
         panel.addView(label(subtitle, 14f, color = 0xffB8C0D0.toInt()))
-        if (action != null) { panel.isClickable = true; jelly(panel); panel.setOnClickListener { action() } }
+        if (action != null) { panel.isClickable = true; panel.background = rounded(0xff2478C9.toInt()); jelly(panel); panel.setOnClickListener { action() } }
         content.addView(panel, LinearLayout.LayoutParams(-1, -2))
         content.addView(gap(14))
     }
@@ -220,7 +191,6 @@ class MainActivity : Activity() {
         pairingPort = prefs.getString("pairing_port", "") ?: ""
         show(1)
         autoReconnect()
-        statusHandler.postDelayed(statusPoll, 15000L)
     }
     private var lastAutoConnectAt = 0L
     private var connectionMessage = "○ ADB не подключено"
@@ -238,7 +208,7 @@ class MainActivity : Activity() {
                 ensureWatchConnected()
                 "● Часы подключены"
             } catch (e: Exception) {
-                "◌ Часы в режиме ожидания · ждём пробуждения"
+                "○ Не удалось подключиться автоматически. Проверь Wi-Fi и порт ADB."
             }
             runOnUiThread {
                 connectionMessage = outcome
@@ -251,16 +221,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::content.isInitialized) {
-            autoReconnect()
-            statusHandler.removeCallbacks(statusPoll)
-            statusHandler.postDelayed(statusPoll, 15000L)
-        }
-    }
-
-    override fun onPause() {
-        statusHandler.removeCallbacks(statusPoll)
-        super.onPause()
+        if (::content.isInitialized) autoReconnect()
     }
 
     private fun ensureWatchConnected(): WatchAdbManager {
@@ -320,8 +281,11 @@ class MainActivity : Activity() {
 
     private fun updateConnectionStatus() {
         val connected = adbConnected && adbManager?.isConnected == true
-        connectionStatusView?.text = if (connected) "● ADB подключено" else connectionMessage
-        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение активно" else "Автоматически подключимся после пробуждения часов"
+        connectionStatusView?.text = if (connected) "● Часы подключены" else "◌ Часы в режиме ожидания"
+        connectionStatusView?.setTextColor(if (connected) 0xff5BFF9B.toInt() else 0xff87BFFF.toInt())
+        connectionStatusNote?.text = if (connected)
+            "Galaxy Watch Ultra · соединение активно"
+        else "Автоматически подключимся после пробуждения"
     }
 
     private fun show(tab: Int) {
@@ -349,10 +313,10 @@ class MainActivity : Activity() {
             }
             panel.addView(label("СОЕДИНЕНИЕ С ЧАСАМИ", 12f, true, color = accent))
             panel.addView(gap(7))
-            connectionStatusView = label(connectionMessage, 15f, true)
+            connectionStatusView = label("◌ Часы в режиме ожидания", 16f, true)
             panel.addView(connectionStatusView)
-            connectionStatusNote = label("Автоматическое восстановление после пробуждения", 12f, color = 0xffA5B9AE.toInt())
             panel.addView(gap(5))
+            connectionStatusNote = label("Автоматически подключимся после пробуждения", 12f, color = 0xffA5B9AE.toInt())
             panel.addView(connectionStatusNote)
             content.addView(panel)
             updateConnectionStatus()
@@ -368,7 +332,7 @@ class MainActivity : Activity() {
                 }
                 val installStatus = label("Установка ещё не запускалась", 14f, color = accent)
                 val progressFrame = FrameLayout(this).apply {
-                    background = glass()
+                    background = rounded(0xff2478C9.toInt())
                     clipToOutline = true
                 }
                 val progressFill = View(this).apply { setBackgroundColor(0x665BFF9B) }
@@ -400,6 +364,10 @@ class MainActivity : Activity() {
                 }
                 val installButton = Button(this).apply {
                     text = "Установить выбранный APK на часы"; isAllCaps = false
+                    setTextColor(Color.WHITE)
+                    textSize = 19f
+                    setTypeface(null, Typeface.BOLD)
+                    background = rounded(0xff2478C9.toInt())
                     setOnClickListener {
                         val uri = selectedUri
                         if (uri == null) {
@@ -481,7 +449,7 @@ class MainActivity : Activity() {
                                     row.addView(label(displayName.toString(), 18f, true))
                                     row.addView(label(pkg, 12f, color = 0xffB8C0D0.toInt()))
                                     val removeFrame = FrameLayout(this@MainActivity).apply {
-                                        background = glass(18)
+                                        background = rounded(0xff2478C9.toInt())
                                         clipToOutline = true
                                     }
                                     val removeFill = View(this@MainActivity).apply { setBackgroundColor(0x993A94FF.toInt()) }
