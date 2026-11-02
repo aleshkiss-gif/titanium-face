@@ -562,12 +562,24 @@ class MainActivity : Activity() {
                         require(code.matches(Regex("[0-9]{6}"))) { "Код должен содержать 6 цифр" }
                         val pp = temporaryPort.toIntOrNull()
                         require(pp != null && pp in 1..65535) { "Укажи порт сопряжения" }
-                        val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
-                        require(manager.pair(host, pp, code)) { "Часы отклонили сопряжение" }
+                        // Pairing and TLS connection use different ports and sessions.
+                        // Do not reuse a manager left in a failed TLS state.
+                        val pairingManager = WatchAdbManager(applicationContext)
+                        val paired = try { pairingManager.pair(host, pp, code) } catch (e: Exception) {
+                            throw IllegalStateException("Сопряжение не завершено: " + (e.localizedMessage ?: "соединение сброшено") +
+                                ". Открой новый код сопряжения на часах и введи новый порт.", e)
+                        }
+                        require(paired) { "Часы отклонили сопряжение. Открой новый код и порт сопряжения." }
+                        adbManager = null
                     }
                     ensureWatchConnected()
                     "Соединение установлено: $host:$port"
-                } catch (e: Exception) { e.localizedMessage ?: "Ошибка подключения" }
+                } catch (e: Exception) {
+                    val detail = e.localizedMessage ?: "Ошибка подключения"
+                    if (detail.contains("Connection reset", ignoreCase = true))
+                        "Часы сбросили соединение. Проверь актуальные порты ADB и сопряжения; для нового сопряжения открой свежий код на часах."
+                    else detail
+                }
                 runOnUiThread {
                     pin.text.clear()
                     ip.setText(watchAddress)
