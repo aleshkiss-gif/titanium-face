@@ -341,7 +341,6 @@ class MainActivity : Activity() {
                     }
                 }
                 jelly(progressFrame)
-                jelly(progressFrame)
                 progressFrame.setOnClickListener { if (progressFrame.isEnabled) { installButton.performClick() } }
                 content.addView(progressFrame, LinearLayout.LayoutParams(-1, dp(88)))
                 content.addView(gap(8))
@@ -461,13 +460,14 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.33 • Frosted OLED", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.36 • Emerald Glass", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
                 text = name; gravity = Gravity.CENTER; textSize = 14f
                 setTextColor(if (index == tab) accent else 0xffB5BDCB.toInt())
                 setTypeface(null, if (index == tab) Typeface.BOLD else Typeface.NORMAL)
+                jelly(this)
                 setOnClickListener { show(index) }
             }
             nav.addView(button, LinearLayout.LayoutParams(0, dp(46), 1f))
