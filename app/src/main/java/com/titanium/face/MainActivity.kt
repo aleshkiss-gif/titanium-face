@@ -214,6 +214,7 @@ class MainActivity : Activity() {
                 connectionMessage = outcome
                 watchOperation.set(false)
                 updateConnectionStatus()
+                if (currentTab == 2) show(2)
             }
         }
     }
@@ -235,9 +236,9 @@ class MainActivity : Activity() {
             adbManager = null
             adbConnected = false
         }
-        // Respect the port shown by the watch. mDNS may advertise stale endpoints.
-        val targetPort = port?.takeIf { it in 1..65535 }
-            ?: throw IllegalStateException("Не найден порт ADB. Проверь беспроводную отладку на часах.")
+        // ADB TLS ports change across wireless-debugging sessions.
+        // Missing or stale saved ports must not prevent discovery.
+        val savedPort = port?.takeIf { it in 1..65535 }
 
         var lastError: Exception? = null
         fun tryPort(attemptPort: Int): WatchAdbManager? {
@@ -251,13 +252,12 @@ class MainActivity : Activity() {
             }
             return null
         }
-        var connectedPort = targetPort
-        var connectedManager = tryPort(targetPort)
+        var connectedPort = savedPort ?: 0
+        var connectedManager = savedPort?.let { tryPort(it) }
         if (connectedManager == null) {
-            // Discover only the same watch, never silently switch to a different device.
-            val discovered = try { WatchDiscovery.find(applicationContext, host, 4000L) }
+            val discovered = try { WatchDiscovery.find(applicationContext, host, 6500L) }
                 catch (_: Exception) { null }
-            if (discovered?.host == host && discovered.port != targetPort) {
+            if (discovered?.host == host && discovered.port in 1..65535) {
                 connectedManager = tryPort(discovered.port)
                 if (connectedManager != null) connectedPort = discovered.port
             }
@@ -274,7 +274,7 @@ class MainActivity : Activity() {
         adbConnected = false
         runOnUiThread { updateConnectionStatus() }
         throw IllegalStateException(
-            "ADB TLS не подключилось к $host:$targetPort. Проверь порт беспроводной отладки; если сопряжение потеряно, выполни его заново.",
+            "Не удалось подключиться к $host. Сохранённый порт: ${savedPort ?: "не указан"}. Автопоиск ADB не нашёл доступное соединение. Проверь Wi-Fi и беспроводную отладку.",
             lastError
         )
     }
@@ -582,7 +582,7 @@ class MainActivity : Activity() {
             setPadding(dp(18), dp(22), dp(18), dp(22))
         }
         fun updateButton() {
-            val connected = adbManager?.isConnected == true
+            val connected = adbConnected && adbManager?.isConnected == true
             button.text = if (connected) "✓ Подключено к часам" else "Найти и подключить часы"
             button.background = rounded(if (connected) 0xff278B57.toInt() else 0xff2478C9.toInt())
             status.text = if (connected) "● ADB подключено" else "○ ADB не подключено"
