@@ -71,7 +71,13 @@ class MainActivity : Activity() {
         require(host.isNotEmpty() && port != null && port in 1..65535) {
             "Сначала укажи IP и порт подключения на вкладке «Часы»"
         }
-        val connected = try { manager.connect(host, port) } catch (_: Exception) { false }
+        var connected = false
+        repeat(3) { attempt ->
+            if (!connected) {
+                connected = try { manager.connect(host, port) } catch (_: Exception) { false }
+                if (!connected && attempt < 2) Thread.sleep(900L * (attempt + 1))
+            }
+        }
         require(connected) {
             "Не удалось восстановить ADB. Проверь беспроводную отладку и текущий порт часов"
         }
@@ -116,9 +122,25 @@ class MainActivity : Activity() {
                             thread {
                                 val message = try {
                                     val apk = ApkArchiveReader.extract(this@MainActivity, uri, selectedName)
-                                    val response = WatchApkInstaller.install(ensureWatchConnected(), apk) { percent ->
-                                        runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
+                                    var response: String? = null
+                                    var lastError: Exception? = null
+                                    for (attempt in 1..3) {
+                                        try {
+                                            runOnUiThread { installStatus.text = if (attempt == 1) "Устанавливаем…" else "Восстанавливаем ADB: попытка $attempt из 3…" }
+                                            response = WatchApkInstaller.install(ensureWatchConnected(), apk) { percent ->
+                                                runOnUiThread { installStatus.text = "Передача на часы: $percent%" }
+                                            }
+                                            break
+                                        } catch (e: Exception) {
+                                            lastError = e
+                                            val transient = e.message.orEmpty().contains("Connection", true) ||
+                                                e is java.io.IOException || e.message.orEmpty().contains("closed", true)
+                                            if (!transient || attempt == 3) break
+                                            adbManager = null
+                                            Thread.sleep(1000L * attempt)
+                                        }
                                     }
+                                    if (response == null) throw lastError ?: IllegalStateException("ADB установка не удалась")
                                     apk.delete()
                                     "Установка завершена: $response"
                                 } catch (e: Exception) {
@@ -175,7 +197,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.19 • Профиль часов", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.20 • Повтор ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
