@@ -123,7 +123,7 @@ class MainActivity : Activity() {
         content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(22), dp(30), dp(22), dp(20)) }
         scroll.addView(content)
         frame.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        content.addView(label("TITANIUM FACE", 29f, true))
+        content.addView(label("WatchFace Manager", 29f, true))
         content.addView(gap(7))
         content.addView(label(when(tab) { 0 -> "Коллекция циферблатов"; 1 -> "Файлы и установка"; else -> "Подключение Galaxy Watch" }, 15f, color = accent))
         content.addView(gap(30))
@@ -283,7 +283,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.27 • Две вкладки", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.28 • Новый стиль", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
