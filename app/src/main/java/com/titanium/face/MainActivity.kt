@@ -105,12 +105,12 @@ class MainActivity : Activity() {
             when (event.actionMasked) {
                 android.view.MotionEvent.ACTION_DOWN -> {
                     v.animate().cancel()
-                    v.animate().scaleX(0.965f).scaleY(0.965f).setDuration(95).start()
+                    v.animate().scaleX(0.92f).scaleY(0.89f).setDuration(115).start()
                 }
                 android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
                     v.animate().cancel()
-                    v.animate().scaleX(1f).scaleY(1f).setDuration(370)
-                        .setInterpolator(android.view.animation.OvershootInterpolator(1.8f)).start()
+                    v.animate().scaleX(1f).scaleY(1f).setDuration(520)
+                        .setInterpolator(android.view.animation.OvershootInterpolator(3.0f)).start()
                 }
             }
             false
