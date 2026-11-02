@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private var pairingPort = ""
     private var connectionPort = ""
     private var adbManager: WatchAdbManager? = null
+    private var adbConnected = false
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun rounded(color: Int, radius: Int = 22) = GradientDrawable().apply { setColor(color); cornerRadius = dp(radius).toFloat() }
@@ -82,7 +83,7 @@ class MainActivity : Activity() {
                     val mb = if (selectedSize >= 0) String.format("%.2f МБ", selectedSize / 1048576.0) else "Размер неизвестен"
                     card("✓  Файл выбран", (selectedName ?: "APK") + "\n" + mb + "\n" + apkInfo + "\n\nСовместимость с Wear OS пока не подтверждена.")
                 } else card("Нет выбранного файла", "Выбери APK для просмотра информации.")
-                card("Установка на часы", "Пока недоступна. Для установки потребуется безопасное ADB-сопряжение с часами.")
+                card("Установка на часы", if (adbConnected) "ADB подключено. Следующий этап — передача APK и команда установки." else "Сначала подключись к часам по ADB во вкладке «Часы».")
             }
             else -> {
                 card("1. Включить режим разработчика", "На часах: Настройки → О часах → Сведения о ПО. Несколько раз нажми «Версия ПО», пока не появится режим разработчика.")
@@ -92,7 +93,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.8 • ADB pairing (тест)", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.13 • ADB TLS", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf("◉ Каталог", "＋ APK", "⌁ Часы").forEachIndexed { index, name ->
             val button = TextView(this).apply {
@@ -247,6 +248,7 @@ class MainActivity : Activity() {
                             val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
                             if (manager.isConnected || manager.connect(host, p)) {
                                 prefs.edit().putString("watch_ip", host).putString("adb_port", p.toString()).apply()
+                                adbConnected = true
                                 "ADB TLS подключено к часам. Можно переходить к установке APK."
                             } else {
                                 "ADB TLS не подключено. Проверь IP, порт и разрешение сопряжения на часах."
@@ -264,7 +266,7 @@ class MainActivity : Activity() {
         content.addView(gap(8))
         content.addView(tlsStatus)
         content.addView(gap(14))
-        card("Статус: не подключено", "ADB-сопряжение тестируется. Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
+        card(if (adbConnected) "Статус: ADB подключено" else "Статус: не подключено", "Ключ ADB хранится в зашифрованном виде. Код сопряжения не сохраняется.")
         val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
         val keyButton = Button(this).apply {
             text = "Создать защищённый ключ устройства"; isAllCaps = false
