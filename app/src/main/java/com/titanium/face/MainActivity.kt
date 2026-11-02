@@ -216,7 +216,7 @@ class MainActivity : Activity() {
                 @Suppress("DEPRECATION")
                 val info = packageManager.getPackageArchiveInfo(tmp.absolutePath, 0)
                     ?: throw IllegalArgumentException("Файл не распознан как APK")
-                "Пакет: " + info.packageName + "\\nВерсия: " + (info.versionName ?: "не указана")
+                "Пакет: " + info.packageName + "\nВерсия: " + (info.versionName ?: "не указана")
             } catch (e: Exception) {
                 "Ошибка чтения APK: " + (e.localizedMessage ?: "неизвестная ошибка")
             }
