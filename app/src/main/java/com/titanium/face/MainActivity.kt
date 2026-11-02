@@ -321,7 +321,7 @@ class MainActivity : Activity() {
     private fun updateConnectionStatus() {
         val connected = adbConnected && adbManager?.isConnected == true
         connectionStatusView?.text = if (connected) "● ADB подключено" else connectionMessage
-        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение проверено" else "Galaxy Watch Ultra · подключение через Wi-Fi"
+        connectionStatusNote?.text = if (connected) "Galaxy Watch Ultra · соединение активно" else "Автоматически подключимся после пробуждения часов"
     }
 
     private fun show(tab: Int) {
