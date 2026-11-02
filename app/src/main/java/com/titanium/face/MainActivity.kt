@@ -157,23 +157,24 @@ class MainActivity : Activity() {
                     setPadding(dp(20), dp(20), dp(20), dp(20))
                 }
                 progressFrame.addView(progressLabel, FrameLayout.LayoutParams(-1, -1))
-                var progressAnimation: android.animation.ValueAnimator? = null
+                var displayedProgress = 0
                 fun setProgress(percent: Int, title: String) {
+                    val target = percent.coerceIn(displayedProgress, 100)
+                    val old = displayedProgress
+                    displayedProgress = target
                     progressLabel.text = title
                     progressFrame.post {
-                        progressFill.layoutParams = (progressFill.layoutParams as FrameLayout.LayoutParams).apply {
-                            width = (progressFrame.width * percent.coerceIn(0, 100) / 100f).toInt()
+                        val from = (progressFrame.width * old / 100f).toInt()
+                        val to = (progressFrame.width * target / 100f).toInt()
+                        android.animation.ValueAnimator.ofInt(from, to).apply {
+                            duration = 250L
+                            addUpdateListener { animation ->
+                                progressFill.layoutParams = (progressFill.layoutParams as FrameLayout.LayoutParams).apply {
+                                    width = animation.animatedValue as Int
+                                }
+                            }
+                            start()
                         }
-                    }
-                }
-                fun startLoading() {
-                    progressAnimation?.cancel()
-                    progressAnimation = android.animation.ValueAnimator.ofInt(8, 92).apply {
-                        duration = 1700L
-                        repeatCount = android.animation.ValueAnimator.INFINITE
-                        repeatMode = android.animation.ValueAnimator.REVERSE
-                        addUpdateListener { setProgress(it.animatedValue as Int, "Подключение к часам…") }
-                        start()
                     }
                 }
                 val installButton = Button(this).apply {
@@ -186,19 +187,24 @@ class MainActivity : Activity() {
                             if (!watchOperation.compareAndSet(false, true)) return@setOnClickListener
                             isEnabled = false
                             progressFrame.isEnabled = false
-                            startLoading()
+                            displayedProgress = 0
+                            setProgress(3, "Подготовка файла · 3%")
                             installStatus.text = "Подготовка APK…"
                             thread {
                                 val message = try {
                                     val apk = ApkArchiveReader.extract(this@MainActivity, uri, selectedName)
+                                    runOnUiThread { setProgress(15, "Распаковка завершена · 15%") }
                                     var response: String? = null
                                     var lastError: Exception? = null
                                     for (attempt in 1..3) {
                                         try {
                                             runOnUiThread { installStatus.text = if (attempt == 1) "Устанавливаем…" else "Восстанавливаем ADB: попытка $attempt из 3…" }
-                                            response = WatchApkInstaller.install(ensureWatchConnected(), apk) { percent ->
-                                                runOnUiThread { progressAnimation?.cancel(); setProgress(percent, "↓  Установка · $percent%"); installStatus.text = "Передача на часы: $percent%" }
+                                            val connectedManager = ensureWatchConnected()
+                                            runOnUiThread { setProgress(20, "Подключено · 20%") }
+                                            response = WatchApkInstaller.install(connectedManager, apk) { percent ->
+                                                runOnUiThread { val value = 20 + percent * 65 / 100; setProgress(value, "Передача · $value%"); installStatus.text = "Передача на часы: $percent%" }
                                             }
+                                            runOnUiThread { setProgress(95, "Проверка установки · 95%") }
                                             break
                                         } catch (e: Exception) {
                                             lastError = e
@@ -219,7 +225,7 @@ class MainActivity : Activity() {
                                     android.util.Log.e("TitaniumApkInstall", "Install failed", e)
                                     "Ошибка установки: " + (e.localizedMessage ?: e.javaClass.simpleName)
                                 }
-                                runOnUiThread { progressAnimation?.cancel(); setProgress(if (message.startsWith("Установка завершена")) 100 else 0, if (message.startsWith("Установка завершена")) "✓  Циферблат установлен" else "↓  Установить циферблат"); installStatus.text = message; isEnabled = true; progressFrame.isEnabled = true; watchOperation.set(false); inventoryRefresh?.invoke() }
+                                runOnUiThread { if (message.startsWith("Установка завершена")) setProgress(100, "✓  Циферблат установлен") else progressLabel.text = "↓  Повторить установку"; installStatus.text = message; isEnabled = true; progressFrame.isEnabled = true; watchOperation.set(false); inventoryRefresh?.invoke() }
                             }
                         }
                     }
@@ -300,7 +306,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.30 • Стабильность ADB", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.31 • Подключение и прогресс", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
@@ -315,246 +321,83 @@ class MainActivity : Activity() {
         setContentView(frame)
     }
     private fun pairingForm() {
-        content.addView(label("Подключение часов", 22f, true))
-        content.addView(label("Для повторного подключения достаточно сохранённого IP и порта ADB. Код нужен только при новом сопряжении.", 13f, color = 0xffB8C0D0.toInt()))
-        content.addView(gap(16))
-        val ip = EditText(this).apply {
-            hint = "IP часов, например 192.168.1.20"; setText(watchAddress)
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
-            inputType = InputType.TYPE_CLASS_TEXT
-        }
-        val port = EditText(this).apply {
-            hint = "Порт сопряжения"; setText(pairingPort)
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        val code = EditText(this).apply {
-            hint = "000000"; setSingleLine(true); textSize = 32f; gravity = Gravity.CENTER
-            filters = arrayOf(android.text.InputFilter.LengthFilter(6))
-            setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
-        // Preserve unsaved input when switching tabs. Pairing code is kept only in RAM.
-        fun track(field: EditText, onText: (String) -> Unit) {
-            field.addTextChangedListener(object : android.text.TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { onText(s?.toString() ?: "") }
-                override fun afterTextChanged(s: android.text.Editable?) {}
-            })
-        }
-        track(ip) { watchAddress = it }
-        track(port) { pairingPort = it }
-        track(code) { pairingCodeDraft = it }
-        code.setText(pairingCodeDraft)
-        val adbPort = EditText(this).apply {
-            hint = "Порт подключения ADB"; setText(connectionPort)
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(0xff9FA9B9.toInt())
-            inputType = InputType.TYPE_CLASS_NUMBER
-        }
-        track(adbPort) { connectionPort = it }
-        content.addView(label("ПРОФИЛЬ ЧАСОВ · ПОРТ ADB", 16f, true, accent))
-        content.addView(label("Сохранённый порт подключения. Может измениться после перезапуска беспроводной отладки.", 12f, color = 0xffB8C0D0.toInt()))
+        content.addView(label("Подключение к часам", 22f, true))
+        content.addView(gap(12))
+        fun field(hintText: String, value: String, numeric: Boolean = false): EditText =
+            EditText(this).apply {
+                hint = hintText
+                setText(value)
+                setSingleLine(true)
+                setTextColor(Color.WHITE)
+                setHintTextColor(0xff9FA9B9.toInt())
+                inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT
+            }
+        val ip = field("IP часов", watchAddress)
+        val adbPort = field("Порт ADB (из беспроводной отладки)", connectionPort, true)
+        content.addView(ip)
         content.addView(adbPort)
-        content.addView(gap(20))
-        content.addView(label("ДАННЫЕ С ЭКРАНА СОПРЯЖЕНИЯ", 16f, true, accent))
-        content.addView(label("IP и временный порт рядом с кодом на часах", 12f, color = 0xffB8C0D0.toInt()))
-        val pairingRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val ipColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        ipColumn.addView(label("IP ЧАСОВ", 13f, true, accent))
-        ipColumn.addView(ip)
-        val pairingPortColumn = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        pairingPortColumn.addView(label("ПОРТ СОПРЯЖЕНИЯ", 13f, true, accent))
-        pairingPortColumn.addView(port)
-        pairingRow.addView(ipColumn, LinearLayout.LayoutParams(0, -2, 3f))
-        pairingRow.addView(Space(this), LinearLayout.LayoutParams(dp(12), 1))
-        pairingRow.addView(pairingPortColumn, LinearLayout.LayoutParams(0, -2, 2f))
-        content.addView(pairingRow)
-        content.addView(gap(20))
-        content.addView(label("КОД СОПРЯЖЕНИЯ", 18f, true, accent))
-        content.addView(label("6 цифр · вводится только при новом сопряжении", 12f, color = 0xffB8C0D0.toInt()))
-        content.addView(code)
-        content.addView(gap(14))
-        content.addView(label("IP и оба порта сохраняются в профиле. Код не сохраняется. Порт подключения может меняться после перезапуска отладки.", 13f, color = 0xffB8C0D0.toInt()))
+        content.addView(label("Для нового сопряжения заполни два поля ниже. При обычном подключении оставь их пустыми.", 13f, color = 0xffB8C0D0.toInt()))
+        val pairPort = field("Порт сопряжения (необязательно)", pairingPort, true)
+        val pin = field("Код сопряжения (необязательно)", "", true)
+        pin.filters = arrayOf(android.text.InputFilter.LengthFilter(6))
+        content.addView(pairPort)
+        content.addView(pin)
+        content.addView(gap(18))
+        val status = label("○ ADB не подключено", 15f, color = accent)
+        val button = TextView(this).apply {
+            text = "Подключиться к часам"
+            textSize = 19f
+            gravity = Gravity.CENTER
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            background = rounded(0xff2478C9.toInt())
+            setPadding(dp(18), dp(22), dp(18), dp(22))
+        }
+        fun updateButton() {
+            val connected = adbManager?.isConnected == true
+            button.text = if (connected) "✓ Подключено к часам" else "Подключиться к часам"
+            button.background = rounded(if (connected) 0xff278B57.toInt() else 0xff2478C9.toInt())
+            status.text = if (connected) "● ADB подключено" else "○ ADB не подключено"
+        }
+        updateButton()
+        button.setOnClickListener {
+            if (!watchOperation.compareAndSet(false, true)) return@setOnClickListener
+            val host = ip.text.toString().trim()
+            val port = adbPort.text.toString().trim()
+            val temporaryPort = pairPort.text.toString().trim()
+            val code = pin.text.toString().trim()
+            watchAddress = host
+            connectionPort = port
+            pairingPort = temporaryPort
+            prefs.edit().putString("watch_ip", host).putString("adb_port", port)
+                .putString("pairing_port", temporaryPort).apply()
+            status.text = "Подключаемся…"
+            button.isEnabled = false
+            thread {
+                val result = try {
+                    if (code.isNotEmpty()) {
+                        require(code.matches(Regex("[0-9]{6}"))) { "Код должен содержать 6 цифр" }
+                        val pp = temporaryPort.toIntOrNull()
+                        require(pp != null && pp in 1..65535) { "Укажи порт сопряжения" }
+                        val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
+                        require(manager.pair(host, pp, code)) { "Часы отклонили сопряжение" }
+                    }
+                    ensureWatchConnected()
+                    "Соединение установлено"
+                } catch (e: Exception) { e.localizedMessage ?: "Ошибка подключения" }
+                runOnUiThread {
+                    pin.text.clear()
+                    status.text = result
+                    button.isEnabled = true
+                    watchOperation.set(false)
+                    updateButton()
+                    if (adbManager?.isConnected != true) status.text = result
+                }
+            }
+        }
+        content.addView(button, LinearLayout.LayoutParams(-1, dp(74)))
         content.addView(gap(12))
-        val button = Button(this).apply {
-            text = "Проверить данные"; isAllCaps = false
-            setOnClickListener {
-                watchAddress = ip.text.toString().trim()
-                pairingPort = port.text.toString().trim()
-                prefs.edit().putString("watch_ip", watchAddress).putString("pairing_port", pairingPort).putString("adb_port", adbPort.text.toString().trim()).apply()
-                val validIp = watchAddress.split(".").let { parts ->
-                    parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
-                }
-                val validPort = pairingPort.toIntOrNull()?.let { it in 1..65535 } == true
-                val validCode = code.text.toString().matches(Regex("[0-9]{6}"))
-                val message = if (validIp && validPort && validCode)
-                    "Формат данных верный. Теперь нажми «Сопрячь часы по коду (тест)» и введи свежий код."
-                else "Проверь IP, порт и шестизначный код."
-                Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
-            }
-        }
-        content.addView(button)
-        content.addView(gap(10))
-        val pairingStatus = label("Сопряжение ещё не выполнялось", 14f, color = accent)
-        val pairButton = Button(this).apply {
-            text = "Сопрячь часы по коду (тест)"; isAllCaps = false
-            setOnClickListener {
-                val host = ip.text.toString().trim()
-                val p = port.text.toString().toIntOrNull()
-                val pin = code.text.toString()
-                val octets = host.split(".")
-                if (octets.size != 4 || !octets.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
-                    || p == null || p !in 1..65535 || !pin.matches(Regex("[0-9]{6}"))) {
-                    pairingStatus.text = "Проверь IP, порт сопряжения и шестизначный код"
-                } else {
-                    pairingStatus.text = "Выполняется защищённое ADB-сопряжение…"
-                    code.text.clear()
-                    thread {
-                        val message = try {
-                            val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
-                            val paired = manager.pair(host, p, pin)
-                            if (paired) "ADB-сопряжение выполнено. Следующий шаг — TLS-подключение."
-                            else "Часы отклонили сопряжение. Проверь код и временный порт."
-                        } catch (e: Exception) {
-                            val chain = generateSequence<Throwable>(e) { it.cause }.take(5).joinToString(" → ") {
-                                it.javaClass.simpleName + ": " + (it.localizedMessage ?: "без описания")
-                            }
-                            android.util.Log.e("TitaniumAdbPair", "Pairing failed", e)
-                            "Ошибка ADB-сопряжения: " + chain.take(700) + "\nПроверь: открыт экран кода сопряжения на часах, введён именно временный порт сопряжения, код ещё действителен."
-                        }
-                        runOnUiThread { pairingStatus.text = message }
-                    }
-                }
-            }
-        }
-        content.addView(pairButton)
-        content.addView(gap(8))
-        content.addView(pairingStatus)
-        content.addView(gap(12))
-        val result = label("Сеть ещё не проверялась", 14f, color = accent)
-        val probe = Button(this).apply {
-            text = "Проверить порт подключения"; isAllCaps = false
-            setOnClickListener {
-                val host = ip.text.toString().trim()
-                val p = adbPort.text.toString().toIntOrNull()
-                val parts = host.split(".")
-                val validIp = parts.size == 4 && parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
-                if (!validIp || p == null || p !in 1..65535) {
-                    result.text = "Проверь IP и порт подключения"
-                } else {
-                    watchAddress = host; connectionPort = p.toString()
-                    prefs.edit().putString("watch_ip", host).putString("adb_port", connectionPort).apply()
-                    result.text = "Проверяем сеть…"
-                    thread {
-                        val message = try {
-                            Socket().use { socket ->
-                                socket.connect(InetSocketAddress(host, p), 3000)
-                                "TCP-порт доступен. ADB-сопряжение ещё не выполнено."
-                            }
-                        } catch (e: Exception) {
-                            "Порт недоступен: " + (e.localizedMessage ?: "ошибка сети")
-                        }
-                        runOnUiThread { result.text = message }
-                    }
-                }
-            }
-        }
-        content.addView(probe)
-        content.addView(gap(8))
-        content.addView(result)
-        content.addView(gap(12))
-        val tlsStatus = label(if (adbManager?.isConnected == true) "ADB TLS подключено к часам" else "TLS-подключение ещё не проверялось", 14f, color = accent)
-        val tlsButton = Button(this).apply {
-            text = "Подключиться к часам по ADB (TLS)"; isAllCaps = false
-            setOnClickListener {
-                val host = ip.text.toString().trim()
-                val p = adbPort.text.toString().trim().toIntOrNull()
-                val parts = host.split(".")
-                if (parts.size != 4 || !parts.all { it.toIntOrNull()?.let { n -> n in 0..255 } == true }
-                    || p == null || p !in 1..65535) {
-                    tlsStatus.text = "Проверь IP часов и порт подключения ADB (третье поле)"
-                } else {
-                    tlsStatus.text = "Устанавливаем защищённое ADB-соединение…"
-                    thread {
-                        val message = try {
-                            val manager = adbManager ?: WatchAdbManager(applicationContext).also { adbManager = it }
-                            if (manager.isConnected || manager.connect(host, p)) {
-                                prefs.edit().putString("watch_ip", host).putString("adb_port", p.toString()).apply()
-                                adbConnected = true
-                                "ADB TLS подключено к часам. Можно переходить к установке APK."
-                            } else {
-                                "ADB TLS не подключено. Проверь IP, порт и разрешение сопряжения на часах."
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.e("TitaniumAdbTls", "Connect failed", e)
-                            "Ошибка TLS: " + (e.javaClass.simpleName + ": " + (e.localizedMessage ?: "нет описания")).take(550)
-                        }
-                        runOnUiThread { tlsStatus.text = message; updateConnectionStatus() }
-                    }
-                }
-            }
-        }
-        content.addView(tlsButton)
-        content.addView(gap(8))
-        content.addView(tlsStatus)
-        content.addView(gap(14))
-        val liveStatus = label(if (adbManager?.isConnected == true) "● ADB подключено" else "○ ADB не подключено", 20f, true, accent)
-        connectionStatusView = liveStatus
-        content.addView(liveStatus)
-        val statusNote = label("Профиль: Galaxy Watch Ultra · ключ хранится в зашифрованном виде", 13f, color = 0xffB8C0D0.toInt())
-        connectionStatusNote = statusNote
-        content.addView(statusNote)
-        val refreshButton = Button(this).apply {
-            text = "Проверить / восстановить подключение"; isAllCaps = false
-            setOnClickListener {
-                isEnabled = false
-                statusNote.text = "Проверяем подключение…"
-                thread {
-                    val result = try { ensureWatchConnected(); "Соединение подтверждено" }
-                        catch (e: Exception) { e.localizedMessage ?: "Подключение не удалось" }
-                    runOnUiThread {
-                        updateConnectionStatus()
-                        statusNote.text = result
-                        isEnabled = true
-                    }
-                }
-            }
-        }
-        content.addView(gap(10))
-        content.addView(refreshButton)
-        content.addView(gap(16))
-        val identityStatus = label("Проверка ключа не выполнялась", 14f, color = accent)
-        val keyButton = Button(this).apply {
-            text = "Создать защищённый ключ устройства"; isAllCaps = false
-            setOnClickListener {
-                identityStatus.text = "Подготавливаем ключ в Android Keystore…"
-                thread {
-                    val message = try {
-                        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-                        if (!store.containsAlias("titanium_adb_identity_v1")) {
-                            val spec = KeyGenParameterSpec.Builder(
-                                "titanium_adb_identity_v1",
-                                KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-                            ).setAlgorithmParameterSpec(java.security.spec.RSAKeyGenParameterSpec(2048, java.security.spec.RSAKeyGenParameterSpec.F4))
-                                .setDigests(KeyProperties.DIGEST_SHA256)
-                                .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
-                                .build()
-                            KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore").apply {
-                                initialize(spec)
-                                generateKeyPair()
-                            }
-                        }
-                        "Ключ создан или уже существует в Android Keystore. Сопряжение ещё не выполнено."
-                    } catch (e: Exception) {
-                        "Не удалось создать ключ: " + (e.localizedMessage ?: "ошибка")
-                    }
-                    runOnUiThread { identityStatus.text = message }
-                }
-            }
-        }
-        content.addView(keyButton)
-        content.addView(gap(8))
-        content.addView(identityStatus)
+        content.addView(status)
     }
     private fun pickApk() {
         startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
