@@ -39,6 +39,8 @@ class MainActivity : Activity() {
     private var connectionStatusView: TextView? = null
     private var connectionStatusNote: TextView? = null
     private var pairingCodeDraft = ""
+    private var inventoryRefresh: (() -> Unit)? = null
+    private val watchOperation = java.util.concurrent.atomic.AtomicBoolean(false)
     private val prefs by lazy { getSharedPreferences("watch_connection", MODE_PRIVATE) }
     private val managedPrefs by lazy { getSharedPreferences("managed_watch_packages", MODE_PRIVATE) }
     private fun rememberInstalled(pkg: String, name: String) {
@@ -116,6 +118,7 @@ class MainActivity : Activity() {
 
     private fun show(tab: Int) {
         currentTab = tab
+        inventoryRefresh = null
         connectionStatusView = null
         connectionStatusNote = null
         val frame = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(backgroundColor) }
@@ -173,6 +176,7 @@ class MainActivity : Activity() {
                         if (uri == null) {
                             installStatus.text = "Сначала выбери APK циферблата"
                         } else {
+                            if (!watchOperation.compareAndSet(false, true)) return@setOnClickListener
                             isEnabled = false
                             progressFrame.isEnabled = false
                             startLoading()
@@ -208,7 +212,7 @@ class MainActivity : Activity() {
                                     android.util.Log.e("TitaniumApkInstall", "Install failed", e)
                                     "Ошибка установки: " + (e.localizedMessage ?: e.javaClass.simpleName)
                                 }
-                                runOnUiThread { progressAnimation?.cancel(); setProgress(if (message.startsWith("Установка завершена")) 100 else 0, if (message.startsWith("Установка завершена")) "✓  Циферблат установлен" else "↓  Установить циферблат"); installStatus.text = message; isEnabled = true; progressFrame.isEnabled = true }
+                                runOnUiThread { progressAnimation?.cancel(); setProgress(if (message.startsWith("Установка завершена")) 100 else 0, if (message.startsWith("Установка завершена")) "✓  Циферблат установлен" else "↓  Установить циферблат"); installStatus.text = message; isEnabled = true; progressFrame.isEnabled = true; watchOperation.set(false); inventoryRefresh?.invoke() }
                             }
                         }
                     }
@@ -223,6 +227,7 @@ class MainActivity : Activity() {
                 val inventoryStatus = label("Нажми «Обновить список», чтобы проверить часы.", 14f, color = accent)
                 val inventoryList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
                 fun refreshInventory() {
+                    if (!watchOperation.compareAndSet(false, true)) return
                     inventoryStatus.text = "Подключаемся и проверяем установленные пакеты…"
                     inventoryList.removeAllViews()
                     thread {
@@ -230,6 +235,7 @@ class MainActivity : Activity() {
                             val installed = WatchApkInstaller.installedPackages(ensureWatchConnected())
                             val managed = managedPrefs.all.filter { it.key in installed && it.value is String }
                             runOnUiThread {
+                                watchOperation.set(false)
                                 inventoryStatus.text = if (managed.isEmpty()) "Нет подтверждённых установок через TITANIUM FACE на этих часах." else "Найдено: ${managed.size}"
                                 for ((pkg, displayName) in managed) {
                                     val row = LinearLayout(this@MainActivity).apply {
@@ -247,6 +253,7 @@ class MainActivity : Activity() {
                                                 .setMessage("Удалить пакет ${pkg} с часов? Другие приложения не затрагиваются.")
                                                 .setNegativeButton("Отмена", null)
                                                 .setPositiveButton("Удалить") { _, _ ->
+                                                    if (!watchOperation.compareAndSet(false, true)) return@setPositiveButton
                                                     isEnabled = false
                                                     inventoryStatus.text = "Удаляем ${displayName}…"
                                                     thread {
@@ -255,7 +262,7 @@ class MainActivity : Activity() {
                                                             managedPrefs.edit().remove(pkg).apply()
                                                             "Удалено: $pkg"
                                                         } catch (e: Exception) { "Ошибка удаления: " + (e.localizedMessage ?: "неизвестно") }
-                                                        runOnUiThread { inventoryStatus.text = result; isEnabled = true; if (result.startsWith("Удалено:")) refreshInventory() }
+                                                        runOnUiThread { inventoryStatus.text = result; isEnabled = true; watchOperation.set(false); refreshInventory() }
                                                     }
                                                 }.show()
                                         }
@@ -266,14 +273,16 @@ class MainActivity : Activity() {
                                 }
                             }
                         } catch (e: Exception) {
-                            runOnUiThread { inventoryStatus.text = "Не удалось проверить часы: " + (e.localizedMessage ?: "нет соединения") }
+                            runOnUiThread { watchOperation.set(false); inventoryStatus.text = "Не удалось проверить часы: " + (e.localizedMessage ?: "нет соединения") }
                         }
                     }
                 }
+                inventoryRefresh = { refreshInventory() }
                 actionCard("↻  Обновить список циферблатов", "Показать только пакеты, установленные через TITANIUM FACE и найденные на часах", { refreshInventory() })
                 content.addView(inventoryStatus)
                 content.addView(gap(12))
                 content.addView(inventoryList)
+                if (prefs.getString("watch_ip", "").orEmpty().isNotBlank() && prefs.getString("adb_port", "").orEmpty().isNotBlank()) refreshInventory()
 
             }
             else -> {
@@ -283,7 +292,7 @@ class MainActivity : Activity() {
             }
         }
         content.addView(gap(12))
-        content.addView(label("Версия 0.28 • Новый стиль", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
+        content.addView(label("Версия 0.29 • Автообновление", 12f, color = 0xff8F99AA.toInt()).apply { gravity = Gravity.CENTER })
         val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(10), dp(8), dp(16)); setBackgroundColor(surface) }
         listOf(1 to "＋ APK", 2 to "⌁ Часы").forEach { (index, name) ->
             val button = TextView(this).apply {
